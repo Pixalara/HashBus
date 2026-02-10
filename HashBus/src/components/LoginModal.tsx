@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Mail, CheckCircle } from 'lucide-react';
+import { X, Mail, CheckCircle, KeyRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from './Button';
 
@@ -8,8 +8,12 @@ interface LoginModalProps {
   onClose: () => void;
 }
 
+type AuthStep = 'EMAIL' | 'OTP';
+
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<AuthStep>('EMAIL');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -21,10 +25,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     return emailRegex.test(email);
   };
 
-  const handleSendLoginLink = async (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess(false);
     setLoading(true);
 
     try {
@@ -36,15 +39,37 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
         email: email.toLowerCase().trim(),
         options: {
           shouldCreateUser: true,
+          // Note: Ensure your Supabase Auth settings are configured 
+          // to send a code instead of a magic link.
         },
+      });
+
+      if (error) throw error;
+      setStep('OTP');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.toLowerCase().trim(),
+        token: otp,
+        type: 'email',
       });
 
       if (error) throw error;
 
       setSuccess(true);
-      setEmail('');
     } catch (err: any) {
-      setError(err.message || 'Failed to send login link. Please try again.');
+      setError(err.message || 'Invalid code. Please check and try again.');
     } finally {
       setLoading(false);
     }
@@ -52,6 +77,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
   const handleClose = () => {
     setEmail('');
+    setOtp('');
+    setStep('EMAIL');
     setError('');
     setSuccess(false);
     onClose();
@@ -62,7 +89,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
       <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-slate-700">
           <h2 className="text-2xl font-bold text-white">
-            {success ? 'Check Your Email' : 'Login / Sign Up'}
+            {success ? 'Welcome Back' : step === 'EMAIL' ? 'Login / Sign Up' : 'Verify Email'}
           </h2>
           <button
             onClick={handleClose}
@@ -82,19 +109,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
           {success ? (
             <div className="text-center py-4">
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">Login Link Sent</h3>
-              <p className="text-slate-300 mb-4">
-                Check your email for a magic link to login to your account.
-              </p>
-              <p className="text-sm text-slate-400 mb-6">
-                If you don't see it, check your spam folder.
+              <h3 className="text-xl font-semibold text-white mb-2">Login Successful</h3>
+              <p className="text-slate-300 mb-6">
+                You have been successfully authenticated.
               </p>
               <Button onClick={handleClose} className="w-full">
-                Got It
+                Go to Dashboard
               </Button>
             </div>
-          ) : (
-            <form onSubmit={handleSendLoginLink} className="space-y-4">
+          ) : step === 'EMAIL' ? (
+            <form onSubmit={handleSendOTP} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Email Address
@@ -110,12 +134,42 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                   />
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  We'll send you a magic link to login instantly
+                  We'll send a 6-digit verification code to your email
                 </p>
               </div>
 
               <Button type="submit" disabled={loading || !email} className="w-full">
-                {loading ? 'Sending Link...' : 'Send Login Link'}
+                {loading ? 'Sending Code...' : 'Send Verification Code'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Verification Code
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="Enter 6-digit code"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                    maxLength={6}
+                  />
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setStep('EMAIL')}
+                  className="mt-2 text-xs text-amber-500 hover:text-amber-400 transition-colors"
+                >
+                  Change email address
+                </button>
+              </div>
+
+              <Button type="submit" disabled={loading || otp.length < 6} className="w-full">
+                {loading ? 'Verifying...' : 'Verify & Login'}
               </Button>
             </form>
           )}
