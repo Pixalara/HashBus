@@ -5,10 +5,12 @@ import { useToast } from '../components/Toast';
 interface Bus {
   id: string;
   name: string;
-  number: string;
+  number?: string;
+  bus_type?: string;
   coach_type: string;
   total_seats: number;
   amenities: string[];
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -70,6 +72,15 @@ interface Stats {
   revenue: number;
 }
 
+const calculateDuration = (departure: string, arrival: string): string => {
+  const dept = new Date(departure);
+  const arr = new Date(arrival);
+  const diffMs = arr.getTime() - dept.getTime();
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${minutes}m`;
+};
+
 export const useAdmin = () => {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -92,7 +103,15 @@ export const useAdmin = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setBuses(data || []);
+
+      const formattedData = data?.map(bus => ({
+        ...bus,
+        coach_type: bus.bus_type,
+        number: bus.id.substring(0, 8).toUpperCase(),
+        amenities: []
+      })) || [];
+
+      setBuses(formattedData);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch buses', 'error');
     }
@@ -105,24 +124,30 @@ export const useAdmin = () => {
         .select(`
           id,
           bus_id,
-          from_city,
-          to_city,
+          source,
+          destination,
           departure_time,
           arrival_time,
-          duration,
           base_price,
-          journey_date,
-          status,
-          pickup_points,
-          drop_points,
           created_at,
-          updated_at,
-          buses(id, name, number, coach_type, total_seats, amenities)
+          buses(id, name, bus_type, total_seats, is_active)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setTrips(data || []);
+
+      const formattedData = data?.map(trip => ({
+        ...trip,
+        from_city: trip.source,
+        to_city: trip.destination,
+        journey_date: trip.departure_time,
+        duration: calculateDuration(trip.departure_time, trip.arrival_time),
+        status: 'scheduled',
+        pickup_points: [],
+        drop_points: []
+      })) || [];
+
+      setTrips(formattedData);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch trips', 'error');
     }
@@ -136,7 +161,18 @@ export const useAdmin = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPromos(data || []);
+
+      const formattedData = data?.map(promo => ({
+        ...promo,
+        min_booking_amount: promo.min_amount || 0,
+        valid_from: promo.created_at,
+        valid_until: promo.expires_at || promo.created_at,
+        is_active: promo.expires_at ? new Date(promo.expires_at) > new Date() : true,
+        used_count: 0,
+        description: promo.description || ''
+      })) || [];
+
+      setPromos(formattedData);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch promo codes', 'error');
     }
@@ -144,21 +180,51 @@ export const useAdmin = () => {
 
   const fetchBookings = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
-          *,
-          trips(from_city, to_city, journey_date, departure_time, buses(name)),
-          user_id:profiles(full_name, email, phone)
+          id,
+          user_id,
+          trip_id,
+          total_amount,
+          status,
+          created_at,
+          trips(source, destination, departure_time, buses(name))
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (bookingsError) throw bookingsError;
 
-      const formattedData = data?.map(booking => ({
+      if (!bookingsData || bookingsData.length === 0) {
+        setBookings([]);
+        return;
+      }
+
+      const userIds = [...new Set(bookingsData.map(b => b.user_id).filter(Boolean))];
+
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone')
+        .in('id', userIds);
+
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+
+      const formattedData = bookingsData.map(booking => ({
         ...booking,
-        profiles: booking.user_id
-      })) || [];
+        booking_number: booking.id.substring(0, 8).toUpperCase(),
+        final_amount: booking.total_amount,
+        discount_amount: 0,
+        payment_status: booking.status,
+        booking_status: 'confirmed',
+        passengers: [],
+        profiles: profilesMap.get(booking.user_id) || { full_name: null, email: null, phone: null },
+        trips: booking.trips ? {
+          ...booking.trips,
+          from_city: booking.trips.source,
+          to_city: booking.trips.destination,
+          journey_date: booking.trips.departure_time
+        } : undefined
+      }));
 
       setBookings(formattedData);
     } catch (error: any) {
@@ -173,14 +239,14 @@ export const useAdmin = () => {
         supabase
           .from('trips')
           .select('id', { count: 'exact', head: true })
-          .eq('status', 'scheduled'),
-        supabase.from('bookings').select('final_amount'),
+          .gte('departure_time', new Date().toISOString()),
+        supabase.from('bookings').select('total_amount'),
       ]);
 
       const totalBuses = busesRes.count || 0;
       const activeTrips = tripsRes.count || 0;
       const totalBookings = bookingsRes.data?.length || 0;
-      const revenue = bookingsRes.data?.reduce((sum, b) => sum + parseFloat(b.final_amount), 0) || 0;
+      const revenue = bookingsRes.data?.reduce((sum, b) => sum + parseFloat(b.total_amount.toString()), 0) || 0;
 
       setStats({
         totalBuses,
@@ -196,10 +262,11 @@ export const useAdmin = () => {
   const createBus = async (busData: Omit<Bus, 'id' | 'created_at'>) => {
     setLoading(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
       const { error } = await supabase.from('buses').insert({
-        ...busData,
-        created_by: userData.user?.id,
+        name: busData.name,
+        bus_type: busData.coach_type || busData.bus_type || 'Luxury Sleeper',
+        total_seats: busData.total_seats,
+        is_active: true,
       });
 
       if (error) throw error;
@@ -217,7 +284,15 @@ export const useAdmin = () => {
   const updateBus = async (id: string, busData: Partial<Bus>) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from('buses').update(busData).eq('id', id);
+      const updateData: any = {};
+
+      if (busData.name) updateData.name = busData.name;
+      if (busData.coach_type || busData.bus_type) {
+        updateData.bus_type = busData.coach_type || busData.bus_type;
+      }
+      if (busData.total_seats) updateData.total_seats = busData.total_seats;
+
+      const { error } = await supabase.from('buses').update(updateData).eq('id', id);
 
       if (error) throw error;
       showToast('Bus updated successfully', 'success');
@@ -250,42 +325,44 @@ export const useAdmin = () => {
   const createTrip = async (tripData: Omit<Trip, 'id' | 'created_at' | 'buses'>) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from('trips').insert(tripData);
+      const insertData: any = {
+        bus_id: tripData.bus_id,
+        source: tripData.from_city,
+        destination: tripData.to_city,
+        departure_time: tripData.journey_date && tripData.departure_time
+          ? `${tripData.journey_date}T${tripData.departure_time}:00`
+          : tripData.departure_time,
+        arrival_time: tripData.journey_date && tripData.arrival_time
+          ? `${tripData.journey_date}T${tripData.arrival_time}:00`
+          : tripData.arrival_time,
+        base_price: tripData.base_price,
+      };
+
+      const { error, data: insertedTrip } = await supabase
+        .from('trips')
+        .insert(insertData)
+        .select()
+        .single();
 
       if (error) throw error;
 
-      const { data: newTrip } = await supabase
-        .from('trips')
-        .select('id, bus_id, total_seats:buses(total_seats)')
-        .eq('bus_id', tripData.bus_id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (newTrip) {
+      if (insertedTrip) {
         const busData = await supabase
           .from('buses')
           .select('total_seats')
-          .eq('id', newTrip.bus_id)
+          .eq('id', insertedTrip.bus_id)
           .single();
 
         const totalSeats = busData.data?.total_seats || 40;
         const seats = [];
 
-        for (let row = 0; row < 10; row++) {
-          for (let col = 0; col < 4; col++) {
-            const seatNum = row * 4 + col + 1;
-            if (seatNum <= totalSeats) {
-              seats.push({
-                trip_id: newTrip.id,
-                seat_number: `${seatNum}`,
-                position_row: row,
-                position_col: col,
-                price: tripData.base_price,
-                status: 'available',
-              });
-            }
-          }
+        for (let i = 1; i <= totalSeats; i++) {
+          seats.push({
+            bus_id: insertedTrip.bus_id,
+            seat_number: `${i}`,
+            seat_type: 'sleeper',
+            is_blocked: false,
+          });
         }
 
         await supabase.from('seats').insert(seats);
@@ -305,7 +382,16 @@ export const useAdmin = () => {
   const updateTrip = async (id: string, tripData: Partial<Trip>) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from('trips').update(tripData).eq('id', id);
+      const updateData: any = {};
+
+      if (tripData.from_city) updateData.source = tripData.from_city;
+      if (tripData.to_city) updateData.destination = tripData.to_city;
+      if (tripData.departure_time) updateData.departure_time = tripData.departure_time;
+      if (tripData.arrival_time) updateData.arrival_time = tripData.arrival_time;
+      if (tripData.base_price) updateData.base_price = tripData.base_price;
+      if (tripData.bus_id) updateData.bus_id = tripData.bus_id;
+
+      const { error } = await supabase.from('trips').update(updateData).eq('id', id);
 
       if (error) throw error;
       showToast('Trip updated successfully', 'success');
@@ -338,11 +424,17 @@ export const useAdmin = () => {
   const createPromo = async (promoData: Omit<PromoCode, 'id' | 'created_at' | 'used_count'>) => {
     setLoading(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase.from('promo_codes').insert({
-        ...promoData,
-        created_by: userData.user?.id,
-      });
+      const insertData: any = {
+        code: promoData.code,
+        discount_type: promoData.discount_type,
+        discount_value: promoData.discount_value,
+        min_amount: promoData.min_booking_amount || 0,
+        max_discount: promoData.max_discount,
+        expires_at: promoData.valid_until,
+        usage_limit: promoData.usage_limit,
+      };
+
+      const { error } = await supabase.from('promo_codes').insert(insertData);
 
       if (error) throw error;
       showToast('Promo code created successfully', 'success');
@@ -358,7 +450,17 @@ export const useAdmin = () => {
   const updatePromo = async (id: string, promoData: Partial<PromoCode>) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from('promo_codes').update(promoData).eq('id', id);
+      const updateData: any = {};
+
+      if (promoData.code) updateData.code = promoData.code;
+      if (promoData.discount_type) updateData.discount_type = promoData.discount_type;
+      if (promoData.discount_value !== undefined) updateData.discount_value = promoData.discount_value;
+      if (promoData.min_booking_amount !== undefined) updateData.min_amount = promoData.min_booking_amount;
+      if (promoData.max_discount !== undefined) updateData.max_discount = promoData.max_discount;
+      if (promoData.valid_until) updateData.expires_at = promoData.valid_until;
+      if (promoData.usage_limit !== undefined) updateData.usage_limit = promoData.usage_limit;
+
+      const { error } = await supabase.from('promo_codes').update(updateData).eq('id', id);
 
       if (error) throw error;
       showToast('Promo code updated successfully', 'success');
@@ -390,12 +492,17 @@ export const useAdmin = () => {
   const toggleSeatBlock = async (seatId: string, currentStatus: string) => {
     setLoading(true);
     try {
-      const newStatus = currentStatus === 'blocked' ? 'available' : 'blocked';
-      const { error } = await supabase.from('seats').update({ status: newStatus }).eq('id', seatId);
+      const isCurrentlyBlocked = currentStatus === 'blocked' || currentStatus === 'true' || currentStatus === true;
+      const newBlockedState = !isCurrentlyBlocked;
+
+      const { error } = await supabase
+        .from('seats')
+        .update({ is_blocked: newBlockedState })
+        .eq('id', seatId);
 
       if (error) throw error;
       showToast(
-        `Seat ${newStatus === 'blocked' ? 'blocked' : 'unblocked'} successfully`,
+        `Seat ${newBlockedState ? 'blocked' : 'unblocked'} successfully`,
         'success'
       );
     } catch (error: any) {
