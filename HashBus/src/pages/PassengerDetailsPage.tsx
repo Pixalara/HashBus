@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, Phone, Mail } from 'lucide-react';
 import { Bus, Seat, Passenger } from '../types';
 import { BookingSummary } from '../components/BookingSummary';
 import { Button } from '../components/Button';
 import { useBooking } from '../context/BookingContext';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface PassengerDetailsPageProps {
   bus: Bus;
@@ -21,6 +23,7 @@ export const PassengerDetailsPage: React.FC<PassengerDetailsPageProps> = ({
   searchParams,
 }) => {
   const { pickupPoint, dropPoint } = useBooking();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     age: '',
@@ -28,6 +31,36 @@ export const PassengerDetailsPage: React.FC<PassengerDetailsPageProps> = ({
     mobile: '',
     email: '',
   });
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setFormData({
+          name: data.name || '',
+          age: '',
+          gender: data.gender || 'Male',
+          mobile: data.phone || '',
+          email: data.email || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 

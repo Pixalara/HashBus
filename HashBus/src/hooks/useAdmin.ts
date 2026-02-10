@@ -107,7 +107,7 @@ export const useAdmin = () => {
       const formattedData = data?.map(bus => ({
         ...bus,
         coach_type: bus.bus_type,
-        number: bus.id.substring(0, 8).toUpperCase(),
+        number: bus.bus_number || bus.id.substring(0, 8).toUpperCase(),
         amenities: []
       })) || [];
 
@@ -129,8 +129,10 @@ export const useAdmin = () => {
           departure_time,
           arrival_time,
           base_price,
+          pickup_points,
+          drop_points,
           created_at,
-          buses(id, name, bus_type, total_seats, is_active)
+          buses(id, name, bus_type, bus_number, total_seats, is_active)
         `)
         .order('created_at', { ascending: false });
 
@@ -143,8 +145,8 @@ export const useAdmin = () => {
         journey_date: trip.departure_time,
         duration: calculateDuration(trip.departure_time, trip.arrival_time),
         status: 'scheduled',
-        pickup_points: [],
-        drop_points: []
+        pickup_points: trip.pickup_points || [],
+        drop_points: trip.drop_points || []
       })) || [];
 
       setTrips(formattedData);
@@ -264,6 +266,7 @@ export const useAdmin = () => {
     try {
       const { error } = await supabase.from('buses').insert({
         name: busData.name,
+        bus_number: busData.number,
         bus_type: busData.coach_type || busData.bus_type || 'Luxury Sleeper',
         total_seats: busData.total_seats,
         is_active: true,
@@ -287,6 +290,7 @@ export const useAdmin = () => {
       const updateData: any = {};
 
       if (busData.name) updateData.name = busData.name;
+      if (busData.number) updateData.bus_number = busData.number;
       if (busData.coach_type || busData.bus_type) {
         updateData.bus_type = busData.coach_type || busData.bus_type;
       }
@@ -325,6 +329,7 @@ export const useAdmin = () => {
   const createTrip = async (tripData: Omit<Trip, 'id' | 'created_at' | 'buses'>) => {
     setLoading(true);
     try {
+      const arrivalDate = (tripData as any).arrival_date || tripData.journey_date;
       const insertData: any = {
         bus_id: tripData.bus_id,
         source: tripData.from_city,
@@ -332,10 +337,12 @@ export const useAdmin = () => {
         departure_time: tripData.journey_date && tripData.departure_time
           ? `${tripData.journey_date}T${tripData.departure_time}:00`
           : tripData.departure_time,
-        arrival_time: tripData.journey_date && tripData.arrival_time
-          ? `${tripData.journey_date}T${tripData.arrival_time}:00`
+        arrival_time: arrivalDate && tripData.arrival_time
+          ? `${arrivalDate}T${tripData.arrival_time}:00`
           : tripData.arrival_time,
         base_price: tripData.base_price,
+        pickup_points: tripData.pickup_points || [],
+        drop_points: tripData.drop_points || [],
       };
 
       const { error, data: insertedTrip } = await supabase
@@ -386,10 +393,23 @@ export const useAdmin = () => {
 
       if (tripData.from_city) updateData.source = tripData.from_city;
       if (tripData.to_city) updateData.destination = tripData.to_city;
-      if (tripData.departure_time) updateData.departure_time = tripData.departure_time;
-      if (tripData.arrival_time) updateData.arrival_time = tripData.arrival_time;
       if (tripData.base_price) updateData.base_price = tripData.base_price;
       if (tripData.bus_id) updateData.bus_id = tripData.bus_id;
+      if (tripData.pickup_points !== undefined) updateData.pickup_points = tripData.pickup_points;
+      if (tripData.drop_points !== undefined) updateData.drop_points = tripData.drop_points;
+
+      const arrivalDate = (tripData as any).arrival_date || tripData.journey_date;
+      if (tripData.journey_date && tripData.departure_time) {
+        updateData.departure_time = `${tripData.journey_date}T${tripData.departure_time}:00`;
+      } else if (tripData.departure_time) {
+        updateData.departure_time = tripData.departure_time;
+      }
+
+      if (arrivalDate && tripData.arrival_time) {
+        updateData.arrival_time = `${arrivalDate}T${tripData.arrival_time}:00`;
+      } else if (tripData.arrival_time) {
+        updateData.arrival_time = tripData.arrival_time;
+      }
 
       const { error } = await supabase.from('trips').update(updateData).eq('id', id);
 

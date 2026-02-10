@@ -30,15 +30,20 @@ export interface Seat {
 export interface Bus {
   id: string;
   name: string;
-  coachType: CoachType;
+  number?: string;
+  coachType: CoachType | string;
   departureTime: string;
   arrivalTime: string;
   duration: string;
-  availableSeats: number;
+  availableSeats?: number;
+  totalSeats?: number;
   basePrice: number;
   amenities: string[];
   rating: number;
-  seats: Seat[];
+  seats?: Seat[];
+  trip_id?: string;
+  pickup_points?: any[];
+  drop_points?: any[];
 }
 
 export interface SearchParams {

@@ -120,8 +120,8 @@ export const BusModal: React.FC<BusModalProps> = ({ isOpen, onClose, onSubmit, b
               <input
                 type="text"
                 value={formData.number}
-                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                onChange={(e) => setFormData({ ...formData, number: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors uppercase"
                 placeholder="e.g., HR55AB1234"
                 required
               />

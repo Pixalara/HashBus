@@ -78,13 +78,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
 
                   {userMenuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50">
+                      <button
+                        onClick={() => {
+                          onNavigate('dashboard');
+                          setUserMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        <User className="w-5 h-5" />
+                        <span className="text-sm font-medium">Dashboard</span>
+                      </button>
                       {profile?.role && ['admin', 'agent'].includes(profile.role) && (
                         <button
                           onClick={() => {
                             onNavigate('admin-dashboard');
                             setUserMenuOpen(false);
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                          className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors border-t border-slate-700"
                         >
                           <Shield className="w-5 h-5" />
                           <span className="text-sm font-medium">Admin Dashboard</span>
@@ -148,6 +158,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                   className="w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-gradient-to-r from-amber-500 to-amber-600 text-white"
                 >
                   Login
+                </button>
+              )}
+
+              {user && (
+                <button
+                  onClick={() => {
+                    onNavigate('dashboard');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 flex items-center gap-2"
+                >
+                  <User className="w-5 h-5" />
+                  Dashboard
                 </button>
               )}
 

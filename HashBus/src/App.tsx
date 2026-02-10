@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BookingProvider, useBooking } from './context/BookingContext';
-import { ToastProvider } from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomePage } from './pages/HomePage';
@@ -14,9 +14,11 @@ import { FleetPage } from './pages/FleetPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import { buses, routes } from './data/mockData';
+import UserDashboardPage from './pages/UserDashboardPage';
+import { routes } from './data/mockData';
 import { Bus, Seat, Passenger, Booking, Location } from './types';
 import { generateBookingId } from './utils/formatters';
+import { supabase } from './lib/supabase';
 
 type Page =
   | 'home'
@@ -29,10 +31,14 @@ type Page =
   | 'fleet'
   | 'about'
   | 'contact'
-  | 'admin-dashboard';
+  | 'admin-dashboard'
+  | 'dashboard';
 
 const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [searchResults, setSearchResults] = useState<Bus[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const { showToast } = useToast();
   const {
     searchParams,
     setSearchParams,
@@ -51,9 +57,112 @@ const AppContent: React.FC = () => {
     resetBooking,
   } = useBooking();
 
-  const handleSearch = (from: string, to: string, date: string) => {
+  const handleSearch = async (from: string, to: string, date: string) => {
     setSearchParams({ from, to, date });
-    setCurrentPage('search');
+    setIsSearching(true);
+    try {
+      const { data: trips, error } = await supabase
+        .from('trips')
+        .select(`
+          id,
+          bus_id,
+          source,
+          destination,
+          departure_time,
+          arrival_time,
+          base_price,
+          pickup_points,
+          drop_points,
+          buses(id, name, bus_number, bus_type, total_seats)
+        `)
+        .eq('source', from)
+        .eq('destination', to)
+        .gte('departure_time', `${date}T00:00:00`)
+        .lte('departure_time', `${date}T23:59:59`);
+
+      if (error) throw error;
+
+      const formattedBuses: Bus[] = await Promise.all((trips || []).map(async (trip: any) => {
+        const { data: seats, error: seatsError } = await supabase
+          .from('seats')
+          .select('*')
+          .eq('bus_id', trip.bus_id);
+
+        if (seatsError) {
+          console.error('Error fetching seats:', seatsError);
+        }
+
+        // Get booked seats for this specific trip and date
+        const { data: bookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select('seats')
+          .eq('trip_id', trip.id)
+          .eq('journey_date', date);
+
+        if (bookingsError) {
+          console.error('Error fetching bookings:', bookingsError);
+        }
+
+        // Flatten all booked seat numbers
+        const bookedSeatNumbers = new Set(
+          (bookings || []).flatMap((booking: any) => booking.seats || [])
+        );
+
+        const formattedSeats: Seat[] = (seats || []).map((seat: any) => ({
+          id: seat.id,
+          number: seat.seat_number,
+          row: Math.floor((parseInt(seat.seat_number) - 1) / 4),
+          col: (parseInt(seat.seat_number) - 1) % 4,
+          status: seat.is_blocked || bookedSeatNumbers.has(seat.seat_number) ? 'blocked' : 'available',
+          price: parseFloat(trip.base_price),
+        }));
+
+        const availableSeats = formattedSeats.filter(s => s.status === 'available').length;
+
+        return {
+          id: trip.id,
+          name: trip.buses?.name || 'Unknown Bus',
+          number: trip.buses?.bus_number || 'N/A',
+          coachType: trip.buses?.bus_type || 'Luxury Sleeper',
+          totalSeats: trip.buses?.total_seats || 40,
+          availableSeats,
+          basePrice: parseFloat(trip.base_price),
+          departureTime: new Date(trip.departure_time).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          arrivalTime: new Date(trip.arrival_time).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          duration: calculateDuration(trip.departure_time, trip.arrival_time),
+          rating: 4.5,
+          amenities: ['WiFi', 'AC', 'Charging Point'],
+          trip_id: trip.id,
+          pickup_points: trip.pickup_points || [],
+          drop_points: trip.drop_points || [],
+          seats: formattedSeats,
+        };
+      }));
+
+      setSearchResults(formattedBuses);
+      setCurrentPage('search');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to search trips', 'error');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const calculateDuration = (departure: string, arrival: string): string => {
+    const dept = new Date(departure);
+    const arr = new Date(arrival);
+    const diffMs = arr.getTime() - dept.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
   };
 
   const handleSelectBus = (bus: Bus) => {
@@ -129,7 +238,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleNavigation = (page: string) => {
-    if (page === 'home' || page === 'fleet' || page === 'about' || page === 'contact' || page === 'admin-dashboard') {
+    if (page === 'home' || page === 'fleet' || page === 'about' || page === 'contact' || page === 'admin-dashboard' || page === 'dashboard') {
       setCurrentPage(page as Page);
     }
   };
@@ -143,7 +252,7 @@ const AppContent: React.FC = () => {
         if (!searchParams) return <HomePage onSearch={handleSearch} />;
         return (
           <SearchResultsPage
-            buses={buses}
+            buses={searchResults}
             searchParams={searchParams}
             onSelectBus={handleSelectBus}
             onBack={() => setCurrentPage('home')}
@@ -230,6 +339,9 @@ const AppContent: React.FC = () => {
 
       case 'admin-dashboard':
         return <AdminDashboardPage onNavigate={handleNavigation} />;
+
+      case 'dashboard':
+        return <UserDashboardPage />;
 
       default:
         return <HomePage onSearch={handleSearch} />;

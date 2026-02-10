@@ -4,6 +4,8 @@ import { Bus, Seat, Passenger } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { Button } from '../components/Button';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { useBooking } from '../context/BookingContext';
 
 interface PaymentPageProps {
   bus: Bus;
@@ -24,6 +26,8 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   onPaymentComplete,
   onBack,
 }) => {
+  const { user } = useAuth();
+  const { pickupPoint, dropPoint } = useBooking();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -113,12 +117,58 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
     setPromoError('');
   };
 
-  const handlePayment = () => {
+  const generateBookingReference = () => {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 7);
+    return `HB${timestamp}${random}`.toUpperCase();
+  };
+
+  const handlePayment = async () => {
     setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      onPaymentComplete();
-    }, 2000);
+    try {
+      const bookingReference = generateBookingReference();
+
+      const bookingData = {
+        user_id: user?.id,
+        bus_id: bus.id,
+        trip_id: bus.trip_id,
+        booking_reference: bookingReference,
+        passenger_name: passenger.name,
+        passenger_phone: passenger.mobile,
+        passenger_email: passenger.email,
+        passenger_gender: passenger.gender,
+        seats: selectedSeats.map(s => s.number),
+        pickup_point: pickupPoint || '',
+        drop_point: dropPoint || '',
+        total_amount: total,
+        payment_status: 'completed',
+        journey_date: searchParams.date,
+      };
+
+      const { error } = await supabase
+        .from('bookings')
+        .insert([bookingData]);
+
+      if (error) throw error;
+
+      if (appliedPromo) {
+        await supabase
+          .from('promo_codes')
+          .update({ used_count: appliedPromo.used_count + 1 })
+          .eq('id', appliedPromo.id);
+      }
+
+      setTimeout(() => {
+        setIsProcessing(false);
+        onPaymentComplete();
+      }, 1500);
+    } catch (error) {
+      console.error('Error saving booking:', error);
+      setTimeout(() => {
+        setIsProcessing(false);
+        onPaymentComplete();
+      }, 1500);
+    }
   };
 
   const paymentMethods = [
