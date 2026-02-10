@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BookingProvider, useBooking } from './context/BookingContext';
+import { ToastProvider } from './components/Toast';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomePage } from './pages/HomePage';
@@ -246,9 +247,11 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <BookingProvider>
-      <AppContent />
-    </BookingProvider>
+    <ToastProvider>
+      <BookingProvider>
+        <AppContent />
+      </BookingProvider>
+    </ToastProvider>
   );
 }
 

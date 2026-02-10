@@ -39,8 +39,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
         email: email.toLowerCase().trim(),
         options: {
           shouldCreateUser: true,
-          // Note: Ensure your Supabase Auth settings are configured 
-          // to send a code instead of a magic link.
         },
       });
 
@@ -159,7 +157,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                     maxLength={6}
                   />
                 </div>
-                <button 
+                <button
                   type="button"
                   onClick={() => setStep('EMAIL')}
                   className="mt-2 text-xs text-amber-500 hover:text-amber-400 transition-colors"

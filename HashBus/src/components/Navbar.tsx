@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                       <User className="w-4 h-4 text-white" />
                     </div>
                     <span className="text-white text-sm font-medium hidden sm:block">
-                      {profile?.full_name || profile?.phone || 'User'}
+                      {profile?.full_name || profile?.email || profile?.phone || 'User'}
                     </span>
                   </button>
 

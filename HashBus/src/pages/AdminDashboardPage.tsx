@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
-import { Shield, Bus, Calendar, Tag, Users, TrendingUp } from 'lucide-react';
+import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
+import { BusModal } from '../components/admin/BusModal';
+import { TripModal } from '../components/admin/TripModal';
+import { PromoModal } from '../components/admin/PromoModal';
+import { formatCurrency, formatDate, formatTime } from '../utils/formatters';
 
 interface AdminDashboardPageProps {
   onNavigate: (page: string) => void;
@@ -8,7 +13,30 @@ interface AdminDashboardPageProps {
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
   const { profile } = useAuth();
+  const {
+    buses,
+    trips,
+    promos,
+    bookings,
+    stats,
+    createBus,
+    updateBus,
+    deleteBus,
+    createTrip,
+    updateTrip,
+    deleteTrip,
+    createPromo,
+    updatePromo,
+    deletePromo,
+  } = useAdmin();
+
   const [activeTab, setActiveTab] = useState<'buses' | 'trips' | 'promos' | 'bookings'>('buses');
+  const [busModalOpen, setBusModalOpen] = useState(false);
+  const [tripModalOpen, setTripModalOpen] = useState(false);
+  const [promoModalOpen, setPromoModalOpen] = useState(false);
+  const [selectedBus, setSelectedBus] = useState<any>(null);
+  const [selectedTrip, setSelectedTrip] = useState<any>(null);
+  const [selectedPromo, setSelectedPromo] = useState<any>(null);
 
   if (!profile || !['admin', 'agent'].includes(profile.role)) {
     return (
@@ -22,11 +50,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
     );
   }
 
-  const stats = [
-    { label: 'Total Buses', value: '0', icon: Bus, color: 'text-blue-500' },
-    { label: 'Active Trips', value: '0', icon: Calendar, color: 'text-green-500' },
-    { label: 'Total Bookings', value: '0', icon: Users, color: 'text-amber-500' },
-    { label: 'Revenue', value: '₹0', icon: TrendingUp, color: 'text-purple-500' },
+  const statsData = [
+    {
+      label: 'Total Buses',
+      value: stats.totalBuses.toString(),
+      icon: Bus,
+      color: 'text-blue-500',
+    },
+    {
+      label: 'Active Trips',
+      value: stats.activeTrips.toString(),
+      icon: Calendar,
+      color: 'text-green-500',
+    },
+    {
+      label: 'Total Bookings',
+      value: stats.totalBookings.toString(),
+      icon: Users,
+      color: 'text-amber-500',
+    },
+    {
+      label: 'Revenue',
+      value: formatCurrency(stats.revenue),
+      icon: TrendingUp,
+      color: 'text-purple-500',
+    },
   ];
 
   const tabs = [
@@ -35,6 +83,66 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
     { id: 'promos' as const, label: 'Promo Codes', icon: Tag },
     { id: 'bookings' as const, label: 'Bookings', icon: Users },
   ];
+
+  const handleEditBus = (bus: any) => {
+    setSelectedBus(bus);
+    setBusModalOpen(true);
+  };
+
+  const handleDeleteBus = async (busId: string) => {
+    if (window.confirm('Are you sure you want to delete this bus?')) {
+      await deleteBus(busId);
+    }
+  };
+
+  const handleEditTrip = (trip: any) => {
+    setSelectedTrip(trip);
+    setTripModalOpen(true);
+  };
+
+  const handleDeleteTrip = async (tripId: string) => {
+    if (window.confirm('Are you sure you want to delete this trip?')) {
+      await deleteTrip(tripId);
+    }
+  };
+
+  const handleEditPromo = (promo: any) => {
+    setSelectedPromo(promo);
+    setPromoModalOpen(true);
+  };
+
+  const handleDeletePromo = async (promoId: string) => {
+    if (window.confirm('Are you sure you want to delete this promo code?')) {
+      await deletePromo(promoId);
+    }
+  };
+
+  const handleBusSubmit = async (busData: any) => {
+    if (selectedBus) {
+      await updateBus(selectedBus.id, busData);
+    } else {
+      await createBus(busData);
+    }
+    setSelectedBus(null);
+  };
+
+  const handleTripSubmit = async (tripData: any) => {
+    if (selectedTrip) {
+      await updateTrip(selectedTrip.id, tripData);
+    } else {
+      await createTrip(tripData);
+    }
+    setSelectedTrip(null);
+  };
+
+  const handlePromoSubmit = async (promoData: any) => {
+    if (selectedPromo) {
+      await updatePromo(selectedPromo.id, promoData);
+    } else {
+      await createPromo(promoData);
+    }
+    setSelectedPromo(null);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8">
@@ -48,7 +156,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => (
+          {statsData.map((stat) => (
             <div
               key={stat.label}
               className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6"
@@ -84,48 +192,378 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
 
           <div className="p-6 sm:p-8">
             {activeTab === 'buses' && (
-              <div className="text-center py-12">
-                <Bus className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No Buses Yet</h3>
-                <p className="text-slate-400 mb-6">Create your first bus to get started</p>
-                <button className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all">
-                  Add Bus
-                </button>
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-white">Buses</h2>
+                  <button
+                    onClick={() => {
+                      setSelectedBus(null);
+                      setBusModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Bus
+                  </button>
+                </div>
+
+                {buses.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Bus className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Buses Yet</h3>
+                    <p className="text-slate-400 mb-6">Create your first bus to get started</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {buses.map((bus) => (
+                      <div
+                        key={bus.id}
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white">{bus.name}</h3>
+                            <p className="text-slate-400 text-sm">{bus.number}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditBus(bus)}
+                              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBus(bus.id)}
+                              className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <p className="text-slate-300">
+                            <span className="text-slate-500">Type:</span> {bus.coach_type}
+                          </p>
+                          <p className="text-slate-300">
+                            <span className="text-slate-500">Seats:</span> {bus.total_seats}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {bus.amenities.map((amenity: string) => (
+                              <span
+                                key={amenity}
+                                className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded text-xs"
+                              >
+                                {amenity}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'trips' && (
-              <div className="text-center py-12">
-                <Calendar className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No Trips Scheduled</h3>
-                <p className="text-slate-400 mb-6">Create your first trip to start accepting bookings</p>
-                <button className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all">
-                  Add Trip
-                </button>
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-white">Trips</h2>
+                  <button
+                    onClick={() => {
+                      setSelectedTrip(null);
+                      setTripModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all"
+                    disabled={buses.length === 0}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Trip
+                  </button>
+                </div>
+
+                {trips.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Calendar className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Trips Scheduled</h3>
+                    <p className="text-slate-400 mb-6">
+                      Create your first trip to start accepting bookings
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {trips.map((trip) => (
+                      <div
+                        key={trip.id}
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="text-lg font-semibold text-white">
+                                {trip.from_city} → {trip.to_city}
+                              </h3>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                  trip.status === 'scheduled'
+                                    ? 'bg-green-500/10 text-green-500'
+                                    : trip.status === 'ongoing'
+                                    ? 'bg-blue-500/10 text-blue-500'
+                                    : trip.status === 'completed'
+                                    ? 'bg-slate-500/10 text-slate-400'
+                                    : 'bg-red-500/10 text-red-500'
+                                }`}
+                              >
+                                {trip.status}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                              <div>
+                                <p className="text-slate-500">Bus</p>
+                                <p className="text-slate-300">{trip.buses?.name}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-500">Date</p>
+                                <p className="text-slate-300">{formatDate(trip.journey_date)}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-500">Departure</p>
+                                <p className="text-slate-300">{formatTime(trip.departure_time)}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-500">Price</p>
+                                <p className="text-slate-300">
+                                  {formatCurrency(trip.base_price)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 ml-4">
+                            <button
+                              onClick={() => handleEditTrip(trip)}
+                              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTrip(trip.id)}
+                              className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'promos' && (
-              <div className="text-center py-12">
-                <Tag className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No Promo Codes</h3>
-                <p className="text-slate-400 mb-6">Create promotional codes to offer discounts</p>
-                <button className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all">
-                  Create Promo Code
-                </button>
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-white">Promo Codes</h2>
+                  <button
+                    onClick={() => {
+                      setSelectedPromo(null);
+                      setPromoModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Promo
+                  </button>
+                </div>
+
+                {promos.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Tag className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Promo Codes</h3>
+                    <p className="text-slate-400 mb-6">
+                      Create promotional codes to offer discounts
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {promos.map((promo) => (
+                      <div
+                        key={promo.id}
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-lg font-semibold text-white">{promo.code}</h3>
+                              {promo.is_active ? (
+                                <span className="px-2 py-0.5 bg-green-500/10 text-green-500 rounded text-xs">
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-red-500/10 text-red-500 rounded text-xs">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-slate-400 text-sm">{promo.description}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditPromo(promo)}
+                              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePromo(promo.id)}
+                              className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <p className="text-slate-300">
+                            <span className="text-slate-500">Discount:</span>{' '}
+                            {promo.discount_type === 'percentage'
+                              ? `${promo.discount_value}%`
+                              : formatCurrency(promo.discount_value)}
+                          </p>
+                          <p className="text-slate-300">
+                            <span className="text-slate-500">Min Amount:</span>{' '}
+                            {formatCurrency(promo.min_booking_amount)}
+                          </p>
+                          <p className="text-slate-300">
+                            <span className="text-slate-500">Usage:</span> {promo.used_count}
+                            {promo.usage_limit ? ` / ${promo.usage_limit}` : ' / Unlimited'}
+                          </p>
+                          <p className="text-slate-300">
+                            <span className="text-slate-500">Valid:</span>{' '}
+                            {formatDate(promo.valid_from)} - {formatDate(promo.valid_until)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'bookings' && (
-              <div className="text-center py-12">
-                <Users className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No Bookings Yet</h3>
-                <p className="text-slate-400">Bookings will appear here once customers start booking</p>
+              <div>
+                <h2 className="text-xl font-semibold text-white mb-6">Bookings</h2>
+
+                {bookings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Bookings Yet</h3>
+                    <p className="text-slate-400">
+                      Bookings will appear here once customers start booking
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {bookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white">
+                              {booking.booking_number}
+                            </h3>
+                            <p className="text-slate-400 text-sm">
+                              {booking.profiles?.full_name ||
+                                booking.profiles?.email ||
+                                booking.profiles?.phone}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <span
+                              className={`px-3 py-1 rounded text-xs font-medium ${
+                                booking.payment_status === 'completed'
+                                  ? 'bg-green-500/10 text-green-500'
+                                  : booking.payment_status === 'pending'
+                                  ? 'bg-yellow-500/10 text-yellow-500'
+                                  : 'bg-red-500/10 text-red-500'
+                              }`}
+                            >
+                              {booking.payment_status}
+                            </span>
+                            <span
+                              className={`px-3 py-1 rounded text-xs font-medium ${
+                                booking.booking_status === 'confirmed'
+                                  ? 'bg-blue-500/10 text-blue-500'
+                                  : 'bg-red-500/10 text-red-500'
+                              }`}
+                            >
+                              {booking.booking_status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div>
+                            <p className="text-slate-500">Route</p>
+                            <p className="text-slate-300">
+                              {booking.trips?.from_city} → {booking.trips?.to_city}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Passengers</p>
+                            <p className="text-slate-300">{booking.passengers.length}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Amount</p>
+                            <p className="text-slate-300">
+                              {formatCurrency(booking.final_amount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Booked On</p>
+                            <p className="text-slate-300">{formatDate(booking.created_at)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <BusModal
+        isOpen={busModalOpen}
+        onClose={() => {
+          setBusModalOpen(false);
+          setSelectedBus(null);
+        }}
+        onSubmit={handleBusSubmit}
+        bus={selectedBus}
+      />
+
+      <TripModal
+        isOpen={tripModalOpen}
+        onClose={() => {
+          setTripModalOpen(false);
+          setSelectedTrip(null);
+        }}
+        onSubmit={handleTripSubmit}
+        trip={selectedTrip}
+        buses={buses}
+      />
+
+      <PromoModal
+        isOpen={promoModalOpen}
+        onClose={() => {
+          setPromoModalOpen(false);
+          setSelectedPromo(null);
+        }}
+        onSubmit={handlePromoSubmit}
+        promo={selectedPromo}
+      />
     </div>
   );
 };
