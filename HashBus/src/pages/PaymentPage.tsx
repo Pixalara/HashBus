@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { CreditCard, Smartphone, Building2, Wallet, Shield, Lock, ArrowLeft } from 'lucide-react';
+import { CreditCard, Smartphone, Building2, Wallet, Shield, Lock, ArrowLeft, Tag, Check, X as XIcon } from 'lucide-react';
 import { Bus, Seat, Passenger } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { Button } from '../components/Button';
+import { supabase } from '../lib/supabase';
 
 interface PaymentPageProps {
   bus: Bus;
@@ -35,9 +36,82 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
 
   const [upiId, setUpiId] = useState('');
 
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+
   const subtotal = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
   const taxes = Math.round(subtotal * 0.05);
-  const total = subtotal + taxes;
+
+  let discount = 0;
+  if (appliedPromo) {
+    if (appliedPromo.discount_type === 'flat') {
+      discount = appliedPromo.discount_value;
+    } else if (appliedPromo.discount_type === 'percentage') {
+      discount = Math.round((subtotal * appliedPromo.discount_value) / 100);
+      if (appliedPromo.max_discount && discount > appliedPromo.max_discount) {
+        discount = appliedPromo.max_discount;
+      }
+    }
+  }
+
+  const total = subtotal + taxes - discount;
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) {
+      setPromoError('Please enter a promo code');
+      return;
+    }
+
+    setPromoLoading(true);
+    setPromoError('');
+
+    try {
+      const { data: promo, error } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', promoCode.toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!promo) {
+        throw new Error('Invalid promo code');
+      }
+
+      const now = new Date();
+      const validFrom = new Date(promo.valid_from);
+      const validUntil = new Date(promo.valid_until);
+
+      if (now < validFrom || now > validUntil) {
+        throw new Error('Promo code has expired');
+      }
+
+      if (promo.usage_limit && promo.used_count >= promo.usage_limit) {
+        throw new Error('Promo code usage limit exceeded');
+      }
+
+      if (subtotal < promo.min_booking_amount) {
+        throw new Error(`Minimum booking amount of ${formatCurrency(promo.min_booking_amount)} required`);
+      }
+
+      setAppliedPromo(promo);
+      setPromoError('');
+    } catch (err: any) {
+      setPromoError(err.message || 'Failed to apply promo code');
+      setAppliedPromo(null);
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoCode('');
+    setPromoError('');
+  };
 
   const handlePayment = () => {
     setIsProcessing(true);
@@ -294,18 +368,70 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
                 </div>
               </div>
 
-              <div className="border-t border-slate-700 pt-4 space-y-3">
-                <div className="flex justify-between text-slate-300">
-                  <span>Base Fare ({selectedSeats.length} seat{selectedSeats.length > 1 ? 's' : ''})</span>
-                  <span>{formatCurrency(subtotal)}</span>
+              <div className="border-t border-slate-700 pt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Have a Promo Code?
+                  </label>
+                  {!appliedPromo ? (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                        <input
+                          type="text"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                          placeholder="Enter code"
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm uppercase"
+                        />
+                      </div>
+                      <button
+                        onClick={handleApplyPromo}
+                        disabled={promoLoading || !promoCode.trim()}
+                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        {promoLoading ? 'Applying...' : 'Apply'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-green-500" />
+                        <span className="text-green-400 text-sm font-medium">{appliedPromo.code}</span>
+                        <span className="text-green-300 text-xs">({appliedPromo.description})</span>
+                      </div>
+                      <button
+                        onClick={handleRemovePromo}
+                        className="text-slate-400 hover:text-white transition-colors"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  {promoError && (
+                    <p className="mt-2 text-xs text-red-400">{promoError}</p>
+                  )}
                 </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Taxes & Service Fee</span>
-                  <span>{formatCurrency(taxes)}</span>
-                </div>
-                <div className="border-t border-slate-700 pt-3 flex justify-between items-center">
-                  <span className="text-lg font-bold text-white">Total Payable</span>
-                  <span className="text-2xl font-bold text-amber-500">{formatCurrency(total)}</span>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex justify-between text-slate-300">
+                    <span>Base Fare ({selectedSeats.length} seat{selectedSeats.length > 1 ? 's' : ''})</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Taxes & Service Fee</span>
+                    <span>{formatCurrency(taxes)}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-400">
+                      <span>Promo Discount</span>
+                      <span>-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-slate-700 pt-3 flex justify-between items-center">
+                    <span className="text-lg font-bold text-white">Total Payable</span>
+                    <span className="text-2xl font-bold text-amber-500">{formatCurrency(total)}</span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -51,8 +51,8 @@ export const ContactPage: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-white mb-3">Email Us</h3>
             <p className="text-slate-300 mb-4">Send us a detailed message</p>
-            <a href="mailto:support@hashbus.in" className="text-amber-400 hover:text-amber-300 font-semibold">
-              support@hashbus.in
+            <a href="mailto:support@hashbus.com" className="text-amber-400 hover:text-amber-300 font-semibold">
+              support@hashbus.com
             </a>
             <p className="text-slate-400 text-sm mt-2">Response within 2 hours</p>
           </div>

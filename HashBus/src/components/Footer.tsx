@@ -50,7 +50,7 @@ export const Footer: React.FC = () => {
               </li>
               <li className="flex items-start space-x-2 text-slate-400">
                 <Mail className="w-4 h-4 mt-0.5 text-amber-500" />
-                <span>support@hashbus.in</span>
+                <span>support@hashbus.com</span>
               </li>
               <li className="flex items-start space-x-2 text-slate-400">
                 <MapPin className="w-4 h-4 mt-0.5 text-amber-500" />

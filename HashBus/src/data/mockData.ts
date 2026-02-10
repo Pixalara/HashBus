@@ -20,15 +20,32 @@ export const routes: Route[] = [
 
 const generateSeats = (basePrice: number): Seat[] => {
   const seats: Seat[] = [];
+  const totalRows = 8;
+  let seatNumber = 1;
 
-  for (let i = 1; i <= 30; i++) {
-    const isUpper = i % 2 === 0;
-    seats.push({
-      id: `seat-${i}`,
-      number: `${isUpper ? 'U' : 'L'}${Math.ceil(i / 2)}`,
-      position: isUpper ? 'upper' : 'lower',
-      status: Math.random() > 0.7 ? 'booked' : 'available',
-      price: isUpper ? basePrice : basePrice + 100,
+  for (let row = 0; row < totalRows; row++) {
+    const columns = [0, 1, 3, 4];
+
+    columns.forEach(col => {
+      const randomStatus = Math.random();
+      let status: 'available' | 'booked' | 'blocked' = 'available';
+
+      if (randomStatus > 0.85) {
+        status = 'booked';
+      } else if (randomStatus > 0.80) {
+        status = 'blocked';
+      }
+
+      seats.push({
+        id: `seat-${row}-${col}`,
+        number: `S${seatNumber}`,
+        row,
+        col,
+        status,
+        price: basePrice + (col < 2 ? 0 : 100),
+      });
+
+      seatNumber++;
     });
   }
 

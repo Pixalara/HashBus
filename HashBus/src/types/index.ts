@@ -16,12 +16,13 @@ export interface Location {
 }
 
 export type CoachType = 'Bharat Benz' | 'Volvo';
-export type SeatStatus = 'available' | 'selected' | 'booked';
+export type SeatStatus = 'available' | 'selected' | 'booked' | 'blocked';
 
 export interface Seat {
   id: string;
   number: string;
-  position: 'upper' | 'lower';
+  row: number;
+  col: number;
   status: SeatStatus;
   price: number;
 }

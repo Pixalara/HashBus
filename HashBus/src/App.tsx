@@ -12,6 +12,7 @@ import { ConfirmationPage } from './pages/ConfirmationPage';
 import { FleetPage } from './pages/FleetPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { buses, routes } from './data/mockData';
 import { Bus, Seat, Passenger, Booking, Location } from './types';
 import { generateBookingId } from './utils/formatters';
@@ -26,7 +27,8 @@ type Page =
   | 'confirmation'
   | 'fleet'
   | 'about'
-  | 'contact';
+  | 'contact'
+  | 'admin-dashboard';
 
 const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -126,7 +128,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleNavigation = (page: string) => {
-    if (page === 'home' || page === 'fleet' || page === 'about' || page === 'contact') {
+    if (page === 'home' || page === 'fleet' || page === 'about' || page === 'contact' || page === 'admin-dashboard') {
       setCurrentPage(page as Page);
     }
   };
@@ -224,6 +226,9 @@ const AppContent: React.FC = () => {
 
       case 'contact':
         return <ContactPage />;
+
+      case 'admin-dashboard':
+        return <AdminDashboardPage onNavigate={handleNavigation} />;
 
       default:
         return <HomePage onSearch={handleSearch} />;
