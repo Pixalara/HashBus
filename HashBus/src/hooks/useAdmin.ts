@@ -12,6 +12,7 @@ interface Bus {
   amenities: string[];
   is_active?: boolean;
   created_at: string;
+  seats?: any[];
 }
 
 interface Trip {
@@ -28,6 +29,12 @@ interface Trip {
   pickup_points: any[];
   drop_points: any[];
   buses?: Bus;
+  pricing?: {
+    lower_double_sleeper: number;
+    lower_single_sleeper: number;
+    upper_double_sleeper: number;
+    upper_single_sleeper: number;
+  };
 }
 
 interface PromoCode {
@@ -73,12 +80,38 @@ interface Stats {
 }
 
 const calculateDuration = (departure: string, arrival: string): string => {
-  const dept = new Date(departure);
-  const arr = new Date(arrival);
-  const diffMs = arr.getTime() - dept.getTime();
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const depTime = departure.split('T')[1]?.substring(0, 5) || '00:00';
+  const arrTime = arrival.split('T')[1]?.substring(0, 5) || '00:00';
+  const depDate = departure.split('T')[0];
+  const arrDate = arrival.split('T')[0];
+
+  const [depHours, depMinutes] = depTime.split(':').map(Number);
+  const [arrHours, arrMinutes] = arrTime.split(':').map(Number);
+
+  let depTotalMinutes = depHours * 60 + depMinutes;
+  let arrTotalMinutes = arrHours * 60 + arrMinutes;
+
+  if (arrDate > depDate) {
+    arrTotalMinutes += 24 * 60;
+  }
+
+  const diffMinutes = arrTotalMinutes - depTotalMinutes;
+  const hours = Math.floor(diffMinutes / 60);
+  const minutes = diffMinutes % 60;
+
   return `${hours}h ${minutes}m`;
+};
+
+const getLowestPrice = (pricing: any): number => {
+  if (!pricing) return 0;
+  const prices = [
+    pricing.lower_double_sleeper,
+    pricing.lower_single_sleeper,
+    pricing.upper_double_sleeper,
+    pricing.upper_single_sleeper,
+  ].filter(p => p && p > 0);
+  
+  return prices.length > 0 ? Math.min(...prices) : 0;
 };
 
 export const useAdmin = () => {
@@ -99,7 +132,10 @@ export const useAdmin = () => {
     try {
       const { data, error } = await supabase
         .from('buses')
-        .select('*')
+        .select(`
+          *,
+          seats(id, seat_number, row, col, deck, is_single, price, status)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -112,6 +148,7 @@ export const useAdmin = () => {
       })) || [];
 
       setBuses(formattedData);
+      console.log('✅ Buses fetched:', formattedData.length);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch buses', 'error');
     }
@@ -129,27 +166,49 @@ export const useAdmin = () => {
           departure_time,
           arrival_time,
           base_price,
+          pricing,
           pickup_points,
           drop_points,
           created_at,
-          buses(id, name, bus_type, bus_number, total_seats, is_active)
+          buses(
+            id, 
+            name, 
+            bus_type, 
+            bus_number, 
+            total_seats, 
+            is_active,
+            seats(id, seat_number, row, col, deck, is_single, price, status)
+          )
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const formattedData = data?.map(trip => ({
-        ...trip,
-        from_city: trip.source,
-        to_city: trip.destination,
-        journey_date: trip.departure_time,
-        duration: calculateDuration(trip.departure_time, trip.arrival_time),
-        status: 'scheduled',
-        pickup_points: trip.pickup_points || [],
-        drop_points: trip.drop_points || []
-      })) || [];
+      const formattedData = data?.map(trip => {
+        const departureDate = trip.departure_time.split('T')[0] || trip.departure_time;
+        const displayPrice = trip.pricing ? getLowestPrice(trip.pricing) : trip.base_price;
+        
+        return {
+          ...trip,
+          from_city: trip.source,
+          to_city: trip.destination,
+          journey_date: departureDate,
+          duration: calculateDuration(trip.departure_time, trip.arrival_time),
+          status: 'scheduled',
+          pickup_points: trip.pickup_points || [],
+          drop_points: trip.drop_points || [],
+          base_price: displayPrice,
+          pricing: trip.pricing || {
+            lower_double_sleeper: trip.base_price,
+            lower_single_sleeper: trip.base_price,
+            upper_double_sleeper: trip.base_price,
+            upper_single_sleeper: trip.base_price,
+          }
+        };
+      }) || [];
 
       setTrips(formattedData);
+      console.log('✅ Trips fetched:', formattedData.length);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch trips', 'error');
     }
@@ -175,6 +234,7 @@ export const useAdmin = () => {
       })) || [];
 
       setPromos(formattedData);
+      console.log('✅ Promos fetched:', formattedData.length);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch promo codes', 'error');
     }
@@ -211,24 +271,29 @@ export const useAdmin = () => {
 
       const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
 
-      const formattedData = bookingsData.map(booking => ({
-        ...booking,
-        booking_number: booking.id.substring(0, 8).toUpperCase(),
-        final_amount: booking.total_amount,
-        discount_amount: 0,
-        payment_status: booking.status,
-        booking_status: 'confirmed',
-        passengers: [],
-        profiles: profilesMap.get(booking.user_id) || { full_name: null, email: null, phone: null },
-        trips: booking.trips ? {
-          ...booking.trips,
-          from_city: booking.trips.source,
-          to_city: booking.trips.destination,
-          journey_date: booking.trips.departure_time
-        } : undefined
-      }));
+      const formattedData = bookingsData.map(booking => {
+        const tripDepartureDate = booking.trips?.departure_time.split('T')[0] || booking.trips?.departure_time;
+        
+        return {
+          ...booking,
+          booking_number: booking.id.substring(0, 8).toUpperCase(),
+          final_amount: booking.total_amount,
+          discount_amount: 0,
+          payment_status: booking.status,
+          booking_status: 'confirmed',
+          passengers: [],
+          profiles: profilesMap.get(booking.user_id) || { full_name: null, email: null, phone: null },
+          trips: booking.trips ? {
+            ...booking.trips,
+            from_city: booking.trips.source,
+            to_city: booking.trips.destination,
+            journey_date: tripDepartureDate
+          } : undefined
+        };
+      });
 
       setBookings(formattedData);
+      console.log('✅ Bookings fetched:', formattedData.length);
     } catch (error: any) {
       showToast(error.message || 'Failed to fetch bookings', 'error');
     }
@@ -256,12 +321,14 @@ export const useAdmin = () => {
         totalBookings,
         revenue,
       });
+      
+      console.log('✅ Stats:', { totalBuses, activeTrips, totalBookings, revenue });
     } catch (error: any) {
       console.error('Failed to fetch stats:', error);
     }
   };
 
-  const createBus = async (busData: Omit<Bus, 'id' | 'created_at'>) => {
+  const createBus = async (busData: Omit<Bus, 'id' | 'created_at' | 'seats'>) => {
     setLoading(true);
     try {
       const { error } = await supabase.from('buses').insert({
@@ -329,21 +396,36 @@ export const useAdmin = () => {
   const createTrip = async (tripData: Omit<Trip, 'id' | 'created_at' | 'buses'>) => {
     setLoading(true);
     try {
-      const arrivalDate = (tripData as any).arrival_date || tripData.journey_date;
+      if (tripData.from_city === tripData.to_city) {
+        throw new Error('Departure and destination cities must be different');
+      }
+
+      if (!tripData.to_city) {
+        throw new Error('Destination city is required');
+      }
+
       const insertData: any = {
         bus_id: tripData.bus_id,
         source: tripData.from_city,
         destination: tripData.to_city,
-        departure_time: tripData.journey_date && tripData.departure_time
-          ? `${tripData.journey_date}T${tripData.departure_time}:00`
-          : tripData.departure_time,
-        arrival_time: arrivalDate && tripData.arrival_time
-          ? `${arrivalDate}T${tripData.arrival_time}:00`
-          : tripData.arrival_time,
+        departure_time: tripData.departure_time,
+        arrival_time: tripData.arrival_time,
         base_price: tripData.base_price,
         pickup_points: tripData.pickup_points || [],
         drop_points: tripData.drop_points || [],
+        pricing: tripData.pricing || {
+          lower_double_sleeper: tripData.base_price,
+          lower_single_sleeper: tripData.base_price,
+          upper_double_sleeper: tripData.base_price,
+          upper_single_sleeper: tripData.base_price,
+        }
       };
+
+      console.log('✅ Creating trip:', {
+        source: insertData.source,
+        destination: insertData.destination,
+        pricing: insertData.pricing,
+      });
 
       const { error, data: insertedTrip } = await supabase
         .from('trips')
@@ -351,7 +433,15 @@ export const useAdmin = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Insert error:', error);
+        throw error;
+      }
+
+      console.log('✅ Trip created successfully:', {
+        source: insertedTrip.source,
+        destination: insertedTrip.destination,
+      });
 
       if (insertedTrip) {
         const busData = await supabase
@@ -360,25 +450,149 @@ export const useAdmin = () => {
           .eq('id', insertedTrip.bus_id)
           .single();
 
-        const totalSeats = busData.data?.total_seats || 40;
-        const seats = [];
+        const { data: existingSeats, count } = await supabase
+          .from('seats')
+          .select('id', { count: 'exact' })
+          .eq('bus_id', insertedTrip.bus_id);
 
-        for (let i = 1; i <= totalSeats; i++) {
-          seats.push({
-            bus_id: insertedTrip.bus_id,
-            seat_number: `${i}`,
-            seat_type: 'sleeper',
-            is_blocked: false,
+        console.log(`📊 Bus ${insertedTrip.bus_id} has ${count} existing seats`);
+
+        if (!count || count === 0) {
+          const seats: any[] = [];
+          let seatNumber = 1;
+
+          // LOWER DECK - 20 SEATS
+          // Rows 0-5: 1 single (col 0) + 2 double (col 1, 2) = 3 seats each = 18 seats
+          for (let row = 0; row < 6; row++) {
+            // Single seat
+            seats.push({
+              bus_id: insertedTrip.bus_id,
+              seat_number: `${seatNumber}`,
+              seat_type: 'sleeper',
+              deck: 'lower',
+              row: row,
+              col: 0,
+              is_single: true,
+              is_blocked: false,
+              price: insertData.pricing.lower_single_sleeper,
+              status: 'available',
+            });
+            seatNumber++;
+
+            // Double seat 1
+            seats.push({
+              bus_id: insertedTrip.bus_id,
+              seat_number: `${seatNumber}`,
+              seat_type: 'sleeper',
+              deck: 'lower',
+              row: row,
+              col: 1,
+              is_single: false,
+              is_blocked: false,
+              price: insertData.pricing.lower_double_sleeper,
+              status: 'available',
+            });
+            seatNumber++;
+
+            // Double seat 2
+            seats.push({
+              bus_id: insertedTrip.bus_id,
+              seat_number: `${seatNumber}`,
+              seat_type: 'sleeper',
+              deck: 'lower',
+              row: row,
+              col: 2,
+              is_single: false,
+              is_blocked: false,
+              price: insertData.pricing.lower_double_sleeper,
+              status: 'available',
+            });
+            seatNumber++;
+          }
+
+          // Rows 6-7: 1 single (col 0) only = 1 seat each = 2 seats
+          for (let row = 6; row < 8; row++) {
+            seats.push({
+              bus_id: insertedTrip.bus_id,
+              seat_number: `${seatNumber}`,
+              seat_type: 'sleeper',
+              deck: 'lower',
+              row: row,
+              col: 0,
+              is_single: true,
+              is_blocked: false,
+              price: insertData.pricing.lower_single_sleeper,
+              status: 'available',
+            });
+            seatNumber++;
+          }
+
+          // UPPER DECK - 20 SEATS
+          // Rows 0-5: 3 double (col 0, 1, 2) = 3 seats each = 18 seats
+          for (let row = 0; row < 6; row++) {
+            for (let col = 0; col < 3; col++) {
+              seats.push({
+                bus_id: insertedTrip.bus_id,
+                seat_number: `${seatNumber}`,
+                seat_type: 'sleeper',
+                deck: 'upper',
+                row: row,
+                col: col,
+                is_single: false,
+                is_blocked: false,
+                price: insertData.pricing.upper_double_sleeper,
+                status: 'available',
+              });
+              seatNumber++;
+            }
+          }
+
+          // Rows 6-7: 1 double (col 0) only = 1 seat each = 2 seats
+          for (let row = 6; row < 8; row++) {
+            seats.push({
+              bus_id: insertedTrip.bus_id,
+              seat_number: `${seatNumber}`,
+              seat_type: 'sleeper',
+              deck: 'upper',
+              row: row,
+              col: 0,
+              is_single: false,
+              is_blocked: false,
+              price: insertData.pricing.upper_double_sleeper,
+              status: 'available',
+            });
+            seatNumber++;
+          }
+
+          console.log('✅ Creating', seats.length, 'seats for bus', insertedTrip.bus_id);
+          console.log('Seat structure:', {
+            total: seats.length,
+            lowerDeck: 20,
+            upperDeck: 20,
+            lowerStructure: '6 rows(1S+2D) + 2 rows(1S)',
+            upperStructure: '6 rows(3D) + 2 rows(1D)'
           });
-        }
 
-        await supabase.from('seats').insert(seats);
+          const { error: seatError, data: createdSeats } = await supabase
+            .from('seats')
+            .insert(seats);
+
+          if (seatError) {
+            console.error('❌ Seat creation error:', seatError);
+            throw new Error(`Failed to create seats: ${seatError.message}`);
+          }
+
+          console.log('✅ Seats created successfully:', seats.length);
+        } else {
+          console.log('ℹ️ Seats already exist for this bus:', count);
+        }
       }
 
       showToast('Trip created successfully', 'success');
       await fetchTrips();
       await fetchStats();
     } catch (error: any) {
+      console.error('❌ Trip creation failed:', error.message);
       showToast(error.message || 'Failed to create trip', 'error');
       throw error;
     } finally {
@@ -389,34 +603,56 @@ export const useAdmin = () => {
   const updateTrip = async (id: string, tripData: Partial<Trip>) => {
     setLoading(true);
     try {
-      const updateData: any = {};
-
-      if (tripData.from_city) updateData.source = tripData.from_city;
-      if (tripData.to_city) updateData.destination = tripData.to_city;
-      if (tripData.base_price) updateData.base_price = tripData.base_price;
-      if (tripData.bus_id) updateData.bus_id = tripData.bus_id;
-      if (tripData.pickup_points !== undefined) updateData.pickup_points = tripData.pickup_points;
-      if (tripData.drop_points !== undefined) updateData.drop_points = tripData.drop_points;
-
-      const arrivalDate = (tripData as any).arrival_date || tripData.journey_date;
-      if (tripData.journey_date && tripData.departure_time) {
-        updateData.departure_time = `${tripData.journey_date}T${tripData.departure_time}:00`;
-      } else if (tripData.departure_time) {
-        updateData.departure_time = tripData.departure_time;
+      if (tripData.from_city && tripData.to_city && tripData.from_city === tripData.to_city) {
+        throw new Error('Departure and destination cities must be different');
       }
 
-      if (arrivalDate && tripData.arrival_time) {
-        updateData.arrival_time = `${arrivalDate}T${tripData.arrival_time}:00`;
-      } else if (tripData.arrival_time) {
+      const updateData: any = {};
+
+      if (tripData.from_city !== undefined) {
+        updateData.source = tripData.from_city;
+      }
+      if (tripData.to_city !== undefined) {
+        updateData.destination = tripData.to_city;
+      }
+      if (tripData.base_price !== undefined) {
+        updateData.base_price = tripData.base_price;
+      }
+      if (tripData.pricing !== undefined) {
+        updateData.pricing = tripData.pricing;
+      }
+      if (tripData.bus_id !== undefined) {
+        updateData.bus_id = tripData.bus_id;
+      }
+      if (tripData.pickup_points !== undefined) {
+        updateData.pickup_points = tripData.pickup_points;
+      }
+      if (tripData.drop_points !== undefined) {
+        updateData.drop_points = tripData.drop_points;
+      }
+      if (tripData.departure_time !== undefined) {
+        updateData.departure_time = tripData.departure_time;
+      }
+      if (tripData.arrival_time !== undefined) {
         updateData.arrival_time = tripData.arrival_time;
       }
 
-      const { error } = await supabase.from('trips').update(updateData).eq('id', id);
+      const { error: updateError } = await supabase
+        .from('trips')
+        .update(updateData)
+        .eq('id', id);
 
-      if (error) throw error;
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Trip updated successfully');
+
       showToast('Trip updated successfully', 'success');
       await fetchTrips();
     } catch (error: any) {
+      console.error('❌ Trip update failed:', error.message);
       showToast(error.message || 'Failed to update trip', 'error');
       throw error;
     } finally {

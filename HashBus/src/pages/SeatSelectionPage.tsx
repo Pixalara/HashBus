@@ -13,6 +13,7 @@ interface SeatSelectionPageProps {
   onContinue: () => void;
   onBack: () => void;
   searchParams: { from: string; to: string; date: string };
+  userGender?: 'Male' | 'Female' | 'Other';
 }
 
 export const SeatSelectionPage: React.FC<SeatSelectionPageProps> = ({
@@ -22,8 +23,10 @@ export const SeatSelectionPage: React.FC<SeatSelectionPageProps> = ({
   onContinue,
   onBack,
   searchParams,
+  userGender = 'Other',
 }) => {
   const { pickupPoint, dropPoint } = useBooking();
+
   const handleSeatClick = (seat: Seat) => {
     const isSelected = selectedSeats.some((s) => s.id === seat.id);
     if (isSelected) {
@@ -45,36 +48,19 @@ export const SeatSelectionPage: React.FC<SeatSelectionPageProps> = ({
         </button>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Select Your Sleeper Berths</h1>
-          <p className="text-slate-400">Choose your preferred berths (Maximum 6 per booking)</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Select Your Seats</h1>
+          <p className="text-slate-400">Choose your preferred seats (Maximum 6 per booking)</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 sm:p-8">
               <SeatMap
-                seats={bus.seats}
+                seats={bus.seats || []}
                 selectedSeats={selectedSeats}
                 onSeatSelect={handleSeatClick}
+                userGender={userGender}
               />
-
-              <div className="mt-10 pt-8 border-t border-slate-700">
-                <h3 className="text-lg font-semibold text-white mb-5">Legend</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-slate-800 border-2 border-slate-600 rounded-xl" />
-                    <span className="text-slate-300 text-sm">Available</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 border-2 border-amber-400 rounded-xl" />
-                    <span className="text-slate-300 text-sm">Selected</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-slate-700 border-2 border-slate-600 rounded-xl opacity-50" />
-                    <span className="text-slate-300 text-sm">Booked</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -97,7 +83,7 @@ export const SeatSelectionPage: React.FC<SeatSelectionPageProps> = ({
                   className="w-full"
                   size="lg"
                 >
-                  Continue to Passenger Details
+                  Continue to Passenger Details ({selectedSeats.length})
                 </Button>
               </div>
             </div>

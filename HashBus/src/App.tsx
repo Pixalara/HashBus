@@ -57,10 +57,46 @@ const AppContent: React.FC = () => {
     resetBooking,
   } = useBooking();
 
+  // Helper function to convert 24-hour time to 12-hour format without timezone conversion
+  const formatTime12Hour = (time: string): string => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours % 12 || 12;
+    return `${String(displayHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  };
+
+  const calculateDuration = (departure: string, arrival: string): string => {
+    // Extract time parts and create dates for comparison
+    const depTime = departure.split('T')[1]?.substring(0, 5) || '00:00';
+    const arrTime = arrival.split('T')[1]?.substring(0, 5) || '00:00';
+    const depDate = departure.split('T')[0];
+    const arrDate = arrival.split('T')[0];
+
+    // Parse to minutes
+    const [depHours, depMinutes] = depTime.split(':').map(Number);
+    const [arrHours, arrMinutes] = arrTime.split(':').map(Number);
+
+    let depTotalMinutes = depHours * 60 + depMinutes;
+    let arrTotalMinutes = arrHours * 60 + arrMinutes;
+
+    // If arrival date is different (next day), add 24 hours
+    if (arrDate > depDate) {
+      arrTotalMinutes += 24 * 60;
+    }
+
+    const diffMinutes = arrTotalMinutes - depTotalMinutes;
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+
+    return `${hours}h ${minutes}m`;
+  };
+
   const handleSearch = async (from: string, to: string, date: string) => {
     setSearchParams({ from, to, date });
     setIsSearching(true);
     try {
+      console.log('🔍 Search Parameters:', { from, to, date });
+
       const { data: trips, error } = await supabase
         .from('trips')
         .select(`
@@ -71,72 +107,117 @@ const AppContent: React.FC = () => {
           departure_time,
           arrival_time,
           base_price,
+          pricing,
           pickup_points,
           drop_points,
-          buses(id, name, bus_number, bus_type, total_seats)
+          buses(
+            id, 
+            name, 
+            bus_number, 
+            bus_type, 
+            total_seats,
+            seats(
+              id,
+              seat_number,
+              row,
+              col,
+              deck,
+              is_single,
+              is_blocked,
+              price,
+              status
+            )
+          )
         `)
         .eq('source', from)
-        .eq('destination', to)
-        .gte('departure_time', `${date}T00:00:00`)
-        .lte('departure_time', `${date}T23:59:59`);
+        .eq('destination', to);
 
       if (error) throw error;
 
-      const formattedBuses: Bus[] = await Promise.all((trips || []).map(async (trip: any) => {
-        const { data: seats, error: seatsError } = await supabase
-          .from('seats')
-          .select('*')
-          .eq('bus_id', trip.bus_id);
+      console.log('📋 All trips fetched:', trips?.length || 0);
+      if (trips) {
+        trips.forEach((trip: any) => {
+          console.log(`  - Trip: ${trip.departure_time}, Seats: ${trip.buses?.seats?.length || 0}`);
+        });
+      }
 
-        if (seatsError) {
-          console.error('Error fetching seats:', seatsError);
-        }
+      if (!trips || trips.length === 0) {
+        showToast('No trips found for this route', 'info');
+        setSearchResults([]);
+        setCurrentPage('search');
+        return;
+      }
 
-        // Get booked seats for this specific trip and date
-        const { data: bookings, error: bookingsError } = await supabase
-          .from('bookings')
-          .select('seats')
-          .eq('trip_id', trip.id)
-          .eq('journey_date', date);
+      // Filter trips by date - Normalize both dates to YYYY-MM-DD format
+      const searchDateNormalized = date; // Should already be YYYY-MM-DD from date picker
+      console.log('📅 Normalized search date:', searchDateNormalized);
 
-        if (bookingsError) {
-          console.error('Error fetching bookings:', bookingsError);
-        }
+      const filteredTrips = trips.filter((trip: any) => {
+        // Extract date part from ISO string: "2026-02-12T22:30:00" -> "2026-02-12"
+        const tripDatePart = trip.departure_time.split('T')[0];
+        const matches = tripDatePart === searchDateNormalized;
+        console.log(`  - Trip date: ${tripDatePart}, Matches: ${matches}`);
+        return matches;
+      });
 
-        // Flatten all booked seat numbers
-        const bookedSeatNumbers = new Set(
-          (bookings || []).flatMap((booking: any) => booking.seats || [])
-        );
+      console.log('✅ Filtered trips:', filteredTrips.length);
 
-        const formattedSeats: Seat[] = (seats || []).map((seat: any) => ({
+      if (filteredTrips.length === 0) {
+        showToast('No trips available for the selected date', 'info');
+        setSearchResults([]);
+        setCurrentPage('search');
+        return;
+      }
+
+      const formattedBuses: Bus[] = filteredTrips.map((trip: any) => {
+        // Use seats data from the trip query
+        const dbSeats = trip.buses?.seats || [];
+
+        console.log(`🚌 Bus ${trip.buses?.name}:`, {
+          totalSeatsInDB: trip.buses?.total_seats,
+          fetchedSeats: dbSeats.length,
+          seatsData: dbSeats.map((s: any) => ({
+            number: s.seat_number,
+            deck: s.deck,
+            isSingle: s.is_single,
+            status: s.status,
+            isBlocked: s.is_blocked,
+          }))
+        });
+
+        // Format seats from database
+        const formattedSeats: Seat[] = dbSeats.map((seat: any) => ({
           id: seat.id,
           number: seat.seat_number,
-          row: Math.floor((parseInt(seat.seat_number) - 1) / 4),
-          col: (parseInt(seat.seat_number) - 1) % 4,
-          status: seat.is_blocked || bookedSeatNumbers.has(seat.seat_number) ? 'blocked' : 'available',
-          price: parseFloat(trip.base_price),
+          row: seat.row,
+          col: seat.col,
+          deck: seat.deck as 'upper' | 'lower',
+          type: 'sleeper' as const,
+          is_single: seat.is_single || false,
+          status: (seat.is_blocked || seat.status === 'booked') ? 'booked' : 'available',
+          price: seat.price || parseFloat(trip.base_price),
         }));
 
-        const availableSeats = formattedSeats.filter(s => s.status === 'available').length;
+        const availableSeats = formattedSeats.filter(
+          s => s.status === 'available' && !s.is_blocked
+        ).length;
+
+        console.log(`  - Available seats: ${availableSeats} / ${formattedSeats.length}`);
+
+        // Extract time parts directly from ISO string WITHOUT timezone conversion
+        const depTimePart = trip.departure_time.split('T')[1]?.substring(0, 5) || '00:00'; // HH:MM
+        const arrTimePart = trip.arrival_time.split('T')[1]?.substring(0, 5) || '00:00'; // HH:MM
 
         return {
-          id: trip.id,
+          id: trip.bus_id,
           name: trip.buses?.name || 'Unknown Bus',
           number: trip.buses?.bus_number || 'N/A',
           coachType: trip.buses?.bus_type || 'Luxury Sleeper',
-          totalSeats: trip.buses?.total_seats || 40,
+          totalSeats: trip.buses?.total_seats || 0,
           availableSeats,
           basePrice: parseFloat(trip.base_price),
-          departureTime: new Date(trip.departure_time).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          }),
-          arrivalTime: new Date(trip.arrival_time).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          }),
+          departureTime: formatTime12Hour(depTimePart),
+          arrivalTime: formatTime12Hour(arrTimePart),
           duration: calculateDuration(trip.departure_time, trip.arrival_time),
           rating: 4.5,
           amenities: ['WiFi', 'AC', 'Charging Point'],
@@ -144,28 +225,33 @@ const AppContent: React.FC = () => {
           pickup_points: trip.pickup_points || [],
           drop_points: trip.drop_points || [],
           seats: formattedSeats,
+          pricing: trip.pricing,
         };
-      }));
+      });
+
+      console.log('🚌 Formatted buses:', formattedBuses.length);
+      formattedBuses.forEach((bus: Bus) => {
+        console.log(`  - ${bus.name}: ${bus.availableSeats} seats available`);
+      });
 
       setSearchResults(formattedBuses);
       setCurrentPage('search');
     } catch (error: any) {
+      console.error('❌ Search error:', error);
       showToast(error.message || 'Failed to search trips', 'error');
     } finally {
       setIsSearching(false);
     }
   };
 
-  const calculateDuration = (departure: string, arrival: string): string => {
-    const dept = new Date(departure);
-    const arr = new Date(arrival);
-    const diffMs = arr.getTime() - dept.getTime();
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${minutes}m`;
-  };
-
   const handleSelectBus = (bus: Bus) => {
+    console.log('🎫 Bus selected:', {
+      name: bus.name,
+      availableSeats: bus.availableSeats,
+      totalSeats: bus.totalSeats,
+      seatCount: bus.seats?.length || 0,
+    });
+
     setSelectedBus(bus);
     setSelectedSeats([]);
     setCurrentPage('pickupDrop');
@@ -178,15 +264,30 @@ const AppContent: React.FC = () => {
   };
 
   const handleSeatSelect = (seat: Seat) => {
+    console.log('💺 Seat toggled:', {
+      number: seat.number,
+      status: seat.status,
+      deck: seat.deck,
+      isSingle: seat.is_single,
+    });
+
     const isSelected = selectedSeats.some((s) => s.id === seat.id);
     if (isSelected) {
       setSelectedSeats(selectedSeats.filter((s) => s.id !== seat.id));
     } else {
+      if (selectedSeats.length >= 6) {
+        showToast('Maximum 6 seats can be selected', 'warning');
+        return;
+      }
       setSelectedSeats([...selectedSeats, seat]);
     }
   };
 
   const handleContinueToPassenger = () => {
+    if (selectedSeats.length === 0) {
+      showToast('Please select at least one seat', 'warning');
+      return;
+    }
     setCurrentPage('passenger');
   };
 
@@ -225,6 +326,12 @@ const AppContent: React.FC = () => {
           pickupPoint,
           dropPoint,
         };
+
+        console.log('✅ Booking created:', {
+          bookingId: newBooking.id,
+          seats: newBooking.selectedSeats.map(s => s.number),
+          total: newBooking.totalAmount,
+        });
 
         setBooking(newBooking);
         setCurrentPage('confirmation');

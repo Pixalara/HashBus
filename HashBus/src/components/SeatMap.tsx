@@ -5,96 +5,278 @@ interface SeatMapProps {
   seats: Seat[];
   selectedSeats: Seat[];
   onSeatSelect: (seat: Seat) => void;
+  userGender?: 'Male' | 'Female' | 'Other';
 }
 
-export const SeatMap: React.FC<SeatMapProps> = ({ seats, selectedSeats, onSeatSelect }) => {
+export const SeatMap: React.FC<SeatMapProps> = ({ 
+  seats, 
+  selectedSeats, 
+  onSeatSelect,
+  userGender = 'Other'
+}) => {
   const isSeatSelected = (seat: Seat) => {
     return selectedSeats.some((s) => s.id === seat.id);
   };
 
-  const getSeatStyle = (seat: Seat) => {
-    if (seat.status === 'booked' || seat.status === 'blocked') {
-      return 'bg-slate-700 cursor-not-allowed border-slate-600 opacity-50';
+  const canSelectSeat = (seat: Seat): boolean => {
+    if (seat.status === 'booked' || seat.status === 'blocked' || 
+        seat.status === 'booked_male' || seat.status === 'booked_female') {
+      return false;
     }
-    if (isSeatSelected(seat)) {
-      return 'bg-gradient-to-br from-amber-500 to-amber-600 border-amber-400 shadow-lg shadow-amber-500/30 scale-105';
-    }
-    return 'bg-slate-800 hover:bg-slate-700 border-slate-600 hover:border-amber-500/50 hover:scale-105 cursor-pointer active:scale-95';
+    return true;
   };
 
-  const maxRow = Math.max(...seats.map(s => s.row));
-  const rows: (Seat | null)[][] = [];
+  const getSeatStyle = (seat: Seat) => {
+    if (seat.status === 'booked' || seat.status === 'blocked') {
+      return 'bg-slate-300 cursor-not-allowed opacity-40 border-slate-300';
+    }
 
-  for (let r = 0; r <= maxRow; r++) {
-    const rowSeats: (Seat | null)[] = [null, null, null, null, null];
-    const seatsInRow = seats.filter(s => s.row === r);
+    if (seat.status === 'booked_male') {
+      return 'bg-blue-300 cursor-not-allowed opacity-50 border-blue-300';
+    }
 
-    seatsInRow.forEach(seat => {
-      if (seat.col >= 0 && seat.col < 5) {
-        rowSeats[seat.col] = seat;
+    if (seat.status === 'booked_female') {
+      return 'bg-pink-300 cursor-not-allowed opacity-50 border-pink-300';
+    }
+
+    if (isSeatSelected(seat)) {
+      return 'bg-green-500 border-green-600 shadow-lg shadow-green-500/40 text-white font-semibold';
+    }
+
+    return 'bg-white border-green-500 hover:bg-green-50 border-2 cursor-pointer hover:shadow-md transition-all';
+  };
+
+  const lowerDeckSeats = seats.filter(s => s.deck === 'lower').sort((a, b) => {
+    if (a.row !== b.row) return a.row - b.row;
+    return a.col - b.col;
+  });
+  
+  const upperDeckSeats = seats.filter(s => s.deck === 'upper').sort((a, b) => {
+    if (a.row !== b.row) return a.row - b.row;
+    return a.col - b.col;
+  });
+
+  const buildDeckLayout = (deckSeats: Seat[]) => {
+    const rows: Seat[][] = [];
+
+    for (let r = 0; r < 8; r++) {
+      const seatsInRow = deckSeats.filter(s => s.row === r).sort((a, b) => a.col - b.col);
+      if (seatsInRow.length > 0) {
+        rows.push(seatsInRow);
       }
-    });
+    }
 
-    rows.push(rowSeats);
-  }
+    return rows;
+  };
 
-  return (
-    <div className="space-y-4">
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold text-white mb-5">Sleeper Coach Layout</h3>
-        <div className="text-slate-400 text-sm mb-4">Select your preferred sleeper berths (Maximum 6 per booking)</div>
+  const lowerRows = buildDeckLayout(lowerDeckSeats);
+  const upperRows = buildDeckLayout(upperDeckSeats);
+
+  const renderSeatButton = (seat: Seat) => {
+    const isDisabled = !canSelectSeat(seat);
+    const isSelected = isSeatSelected(seat);
+
+    return (
+      <button
+        key={seat.id}
+        onClick={() => !isDisabled && onSeatSelect(seat)}
+        disabled={isDisabled}
+        title={`Seat ${seat.number} - ₹${seat.price}`}
+        className={`h-20 w-20 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 font-bold ${getSeatStyle(
+          seat
+        )} ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        <span className={`text-sm leading-none ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+          {seat.number}
+        </span>
+        <span className={`text-xs leading-none font-semibold ${isSelected ? 'text-white' : 'text-green-600'}`}>
+          ₹{Math.floor(seat.price)}
+        </span>
+      </button>
+    );
+  };
+
+  const renderDeck = (rows: Seat[][], deckName: string) => (
+    <div className="flex-1">
+      <div className="text-center mb-6">
+        <div className="flex items-center gap-2 justify-center">
+          <h3 className="text-slate-700 font-bold text-base">{deckName}</h3>
+          {deckName === 'Lower deck' && (
+            <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="8" strokeWidth="2" />
+              <circle cx="12" cy="12" r="2" strokeWidth="2" />
+            </svg>
+          )}
+        </div>
       </div>
 
-      <div className="bg-slate-900/50 rounded-xl p-4 sm:p-6 overflow-x-auto">
-        <div className="min-w-[500px]">
-          <div className="grid grid-cols-5 gap-3 mb-4">
-            <div className="text-center text-xs text-slate-500 font-medium">Left 1</div>
-            <div className="text-center text-xs text-slate-500 font-medium">Left 2</div>
-            <div className="text-center text-xs text-slate-500 font-medium">Aisle</div>
-            <div className="text-center text-xs text-slate-500 font-medium">Right 1</div>
-            <div className="text-center text-xs text-slate-500 font-medium">Right 2</div>
-          </div>
-
-          <div className="space-y-3">
-            {rows.map((row, rowIndex) => (
-              <div key={rowIndex} className="grid grid-cols-5 gap-3">
-                {row.map((seat, colIndex) => {
-                  if (colIndex === 2) {
-                    return (
-                      <div key={`aisle-${rowIndex}`} className="flex items-center justify-center">
-                        <div className="w-full h-16 border-l-2 border-r-2 border-dashed border-slate-700"></div>
-                      </div>
-                    );
-                  }
-
-                  if (!seat) {
-                    return <div key={`empty-${rowIndex}-${colIndex}`} className="h-16"></div>;
-                  }
-
-                  return (
-                    <button
-                      key={seat.id}
-                      onClick={() => (seat.status === 'available' || isSeatSelected(seat)) && onSeatSelect(seat)}
-                      disabled={seat.status === 'booked' || seat.status === 'blocked'}
-                      className={`relative h-16 w-full rounded-xl border-2 transition-all duration-200 flex items-center justify-center ${getSeatStyle(
-                        seat
-                      )}`}
-                    >
-                      <span className="text-sm font-semibold text-white">{seat.number}</span>
-                    </button>
-                  );
-                })}
+      <div className="space-y-3">
+        {rows.map((row, rowIndex) => {
+          // Separate single seats (col 0) from double seats (col 1, 2)
+          const singleSeats = row.filter(s => s.col === 0);
+          const doubleSeats = row.filter(s => s.col > 0);
+          
+          return (
+            <div 
+              key={`${deckName}-row-${rowIndex}`} 
+              className="flex gap-6 justify-center items-center"
+            >
+              {/* Single seats on LEFT */}
+              <div className="flex gap-2">
+                {singleSeats.map(seat => (
+                  <div key={seat.id}>
+                    {renderSeatButton(seat)}
+                  </div>
+                ))}
               </div>
-            ))}
+
+              {/* Gap between single and double */}
+              {doubleSeats.length > 0 && singleSeats.length > 0 && (
+                <div className="w-4"></div>
+              )}
+
+              {/* Double seats on RIGHT */}
+              <div className="flex gap-2">
+                {doubleSeats.map(seat => (
+                  <div key={seat.id}>
+                    {renderSeatButton(seat)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h3 className="text-2xl font-bold text-white mb-2">Select Your Sleeper Seats</h3>
+        <p className="text-slate-400 text-sm">Choose your preferred sleeper berths (Maximum 6 per booking)</p>
+      </div>
+
+      {/* Both Decks Side by Side */}
+      <div className="bg-white rounded-2xl p-8 shadow-lg">
+        <div className="flex gap-12 justify-center">
+          {/* Lower Deck */}
+          {lowerRows.length > 0 && renderDeck(lowerRows, 'Lower deck')}
+
+          {/* Divider */}
+          <div className="w-px bg-gray-300"></div>
+
+          {/* Upper Deck */}
+          {upperRows.length > 0 && renderDeck(upperRows, 'Upper deck')}
+        </div>
+      </div>
+
+      {/* Legends & Summary */}
+      <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700">
+        <h4 className="text-lg font-semibold text-white mb-5">Seat Information</h4>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          {/* Available */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white border-2 border-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-semibold text-slate-700">1</span>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-medium">Available</p>
+              <p className="text-slate-500 text-xs">Ready to book</p>
+            </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-slate-700 flex items-center gap-2 text-slate-400 text-sm">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-            <span>Driver Side</span>
+          {/* Selected */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-green-500 border-2 border-green-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg shadow-green-500/40">
+              <span className="text-sm font-semibold text-white">1</span>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-medium">Selected</p>
+              <p className="text-slate-500 text-xs">Your choice</p>
+            </div>
+          </div>
+
+          {/* Booked */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-slate-300 border-2 border-slate-300 rounded-lg flex items-center justify-center flex-shrink-0 opacity-40">
+              <span className="text-sm font-semibold text-slate-600">X</span>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-medium">Booked</p>
+              <p className="text-slate-500 text-xs">Not available</p>
+            </div>
+          </div>
+
+          {/* Booked Male */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-blue-300 border-2 border-blue-400 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
+              <svg className="w-4 h-4 text-blue-700" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-medium">Booked by Male</p>
+              <p className="text-slate-500 text-xs">Male passenger</p>
+            </div>
+          </div>
+
+          {/* Booked Female */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-pink-300 border-2 border-pink-400 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
+              <svg className="w-4 h-4 text-pink-700" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-medium">Booked by Female</p>
+              <p className="text-slate-500 text-xs">Female passenger</p>
+            </div>
+          </div>
+
+          {/* Blocked */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-slate-500 border-2 border-slate-600 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
+              <svg className="w-4 h-4 text-slate-700" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-medium">Blocked</p>
+              <p className="text-slate-500 text-xs">Unavailable</p>
+            </div>
           </div>
         </div>
+
+        {/* Summary */}
+        <div className="pt-6 border-t border-slate-700">
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-slate-400 text-xs">Total</p>
+              <p className="text-white font-semibold text-lg">{seats.length}</p>
+            </div>
+            <div>
+              <p className="text-slate-400 text-xs">Available</p>
+              <p className="text-green-400 font-semibold text-lg">
+                {seats.filter(s => s.status === 'available').length}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-400 text-xs">Selected</p>
+              <p className="text-amber-400 font-semibold text-lg">{selectedSeats.length} / 6</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Info Box */}
+      <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4">
+        <p className="text-blue-300 text-sm">
+          <strong>💡 Layout:</strong> Lower deck: Single seat (left) with gap + 2 double seats (right). 
+          Upper deck: 3 double seats. Total 40 seats (20 per deck).
+        </p>
       </div>
     </div>
   );

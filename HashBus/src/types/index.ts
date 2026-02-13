@@ -16,7 +16,9 @@ export interface Location {
 }
 
 export type CoachType = 'Bharat Benz' | 'Volvo';
-export type SeatStatus = 'available' | 'selected' | 'booked' | 'blocked';
+export type SeatStatus = 'available' | 'selected' | 'booked' | 'blocked' | 'male_only' | 'female_only' | 'booked_male' | 'booked_female';
+export type SeatType = 'sleeper' | 'seater';
+export type DeckType = 'upper' | 'lower';
 
 export interface Seat {
   id: string;
@@ -25,6 +27,12 @@ export interface Seat {
   col: number;
   status: SeatStatus;
   price: number;
+  type: SeatType;
+  deck: DeckType;
+  is_single?: boolean;
+  is_blocked?: boolean;
+  genderRestriction?: 'male' | 'female' | null;
+  passengerGender?: 'male' | 'female' | null;
 }
 
 export interface Bus {
@@ -44,6 +52,12 @@ export interface Bus {
   trip_id?: string;
   pickup_points?: any[];
   drop_points?: any[];
+  pricing?: {
+    lower_double_sleeper: number;
+    lower_single_sleeper: number;
+    upper_double_sleeper: number;
+    upper_single_sleeper: number;
+  };
 }
 
 export interface SearchParams {

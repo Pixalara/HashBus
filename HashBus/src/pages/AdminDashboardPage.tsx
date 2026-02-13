@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../hooks/useAdmin';
 import { BusModal } from '../components/admin/BusModal';
@@ -11,7 +11,7 @@ interface AdminDashboardPageProps {
   onNavigate: (page: string) => void;
 }
 
-export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
+export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { profile } = useAuth();
   const {
     buses,
@@ -19,6 +19,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
     promos,
     bookings,
     stats,
+    loading,
     createBus,
     updateBus,
     deleteBus,
@@ -28,6 +29,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
     createPromo,
     updatePromo,
     deletePromo,
+    refreshAll,
   } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<'buses' | 'trips' | 'promos' | 'bookings'>('buses');
@@ -37,6 +39,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
   const [selectedBus, setSelectedBus] = useState<any>(null);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [selectedPromo, setSelectedPromo] = useState<any>(null);
+
+  useEffect(() => {
+    console.log('📊 Admin Dashboard Loaded:', {
+      buses: buses.length,
+      trips: trips.length,
+      promos: promos.length,
+      bookings: bookings.length,
+      stats,
+    });
+  }, [buses, trips, promos, bookings, stats]);
 
   if (!profile || !['admin', 'agent'].includes(profile.role)) {
     return (
@@ -91,7 +103,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
 
   const handleDeleteBus = async (busId: string) => {
     if (window.confirm('Are you sure you want to delete this bus?')) {
-      await deleteBus(busId);
+      try {
+        await deleteBus(busId);
+        await refreshAll();
+      } catch (error) {
+        console.error('❌ Delete bus failed:', error);
+      }
     }
   };
 
@@ -102,7 +119,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
 
   const handleDeleteTrip = async (tripId: string) => {
     if (window.confirm('Are you sure you want to delete this trip?')) {
-      await deleteTrip(tripId);
+      try {
+        await deleteTrip(tripId);
+        await refreshAll();
+      } catch (error) {
+        console.error('❌ Delete trip failed:', error);
+      }
     }
   };
 
@@ -113,41 +135,71 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
 
   const handleDeletePromo = async (promoId: string) => {
     if (window.confirm('Are you sure you want to delete this promo code?')) {
-      await deletePromo(promoId);
+      try {
+        await deletePromo(promoId);
+        await refreshAll();
+      } catch (error) {
+        console.error('❌ Delete promo failed:', error);
+      }
     }
   };
 
   const handleBusSubmit = async (busData: any) => {
-    if (selectedBus) {
-      await updateBus(selectedBus.id, busData);
-    } else {
-      await createBus(busData);
+    try {
+      if (selectedBus) {
+        await updateBus(selectedBus.id, busData);
+      } else {
+        await createBus(busData);
+      }
+      setBusModalOpen(false);
+      setSelectedBus(null);
+      await refreshAll();
+    } catch (error) {
+      console.error('❌ Bus operation failed:', error);
     }
-    setSelectedBus(null);
   };
 
   const handleTripSubmit = async (tripData: any) => {
-    if (selectedTrip) {
-      await updateTrip(selectedTrip.id, tripData);
-    } else {
-      await createTrip(tripData);
+    try {
+      if (selectedTrip) {
+        await updateTrip(selectedTrip.id, tripData);
+      } else {
+        await createTrip(tripData);
+      }
+      setTripModalOpen(false);
+      setSelectedTrip(null);
+      await refreshAll();
+    } catch (error) {
+      console.error('❌ Trip operation failed:', error);
     }
-    setSelectedTrip(null);
   };
 
   const handlePromoSubmit = async (promoData: any) => {
-    if (selectedPromo) {
-      await updatePromo(selectedPromo.id, promoData);
-    } else {
-      await createPromo(promoData);
+    try {
+      if (selectedPromo) {
+        await updatePromo(selectedPromo.id, promoData);
+      } else {
+        await createPromo(promoData);
+      }
+      setPromoModalOpen(false);
+      setSelectedPromo(null);
+      await refreshAll();
+    } catch (error) {
+      console.error('❌ Promo operation failed:', error);
     }
-    setSelectedPromo(null);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
+          <button
+            onClick={() => onNavigate('home')}
+            className="flex items-center gap-2 text-slate-300 hover:text-white mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Home
+          </button>
           <div className="flex items-center gap-3 mb-2">
             <Shield className="w-8 h-8 text-amber-500" />
             <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
@@ -194,7 +246,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
             {activeTab === 'buses' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-white">Buses</h2>
+                  <h2 className="text-xl font-semibold text-white">
+                    Buses {buses.length > 0 && `(${buses.length})`}
+                  </h2>
                   <button
                     onClick={() => {
                       setSelectedBus(null);
@@ -207,7 +261,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                   </button>
                 </div>
 
-                {buses.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-400">Loading buses...</p>
+                  </div>
+                ) : buses.length === 0 ? (
                   <div className="text-center py-12">
                     <Bus className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-white mb-2">No Buses Yet</h3>
@@ -218,7 +276,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                     {buses.map((bus) => (
                       <div
                         key={bus.id}
-                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div>
@@ -229,12 +287,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                             <button
                               onClick={() => handleEditBus(bus)}
                               className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                              title="Edit Bus"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteBus(bus.id)}
                               className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Delete Bus"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -247,16 +307,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                           <p className="text-slate-300">
                             <span className="text-slate-500">Seats:</span> {bus.total_seats}
                           </p>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {bus.amenities.map((amenity: string) => (
-                              <span
-                                key={amenity}
-                                className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded text-xs"
-                              >
-                                {amenity}
-                              </span>
-                            ))}
-                          </div>
+                          {bus.amenities && bus.amenities.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {bus.amenities.map((amenity: string) => (
+                                <span
+                                  key={amenity}
+                                  className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded text-xs"
+                                >
+                                  {amenity}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -268,21 +330,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
             {activeTab === 'trips' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-white">Trips</h2>
+                  <h2 className="text-xl font-semibold text-white">
+                    Trips {trips.length > 0 && `(${trips.length})`}
+                  </h2>
                   <button
                     onClick={() => {
                       setSelectedTrip(null);
                       setTripModalOpen(true);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={buses.length === 0}
+                    title={buses.length === 0 ? 'Create a bus first' : ''}
                   >
                     <Plus className="w-4 h-4" />
                     Add Trip
                   </button>
                 </div>
 
-                {trips.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-400">Loading trips...</p>
+                  </div>
+                ) : trips.length === 0 ? (
                   <div className="text-center py-12">
                     <Calendar className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-white mb-2">No Trips Scheduled</h3>
@@ -295,7 +364,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                     {trips.map((trip) => (
                       <div
                         key={trip.id}
-                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -320,7 +389,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                               <div>
                                 <p className="text-slate-500">Bus</p>
-                                <p className="text-slate-300">{trip.buses?.name}</p>
+                                <p className="text-slate-300">{trip.buses?.name || 'N/A'}</p>
                               </div>
                               <div>
                                 <p className="text-slate-500">Date</p>
@@ -342,12 +411,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                             <button
                               onClick={() => handleEditTrip(trip)}
                               className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                              title="Edit Trip"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteTrip(trip.id)}
                               className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Delete Trip"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -363,7 +434,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
             {activeTab === 'promos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-white">Promo Codes</h2>
+                  <h2 className="text-xl font-semibold text-white">
+                    Promo Codes {promos.length > 0 && `(${promos.length})`}
+                  </h2>
                   <button
                     onClick={() => {
                       setSelectedPromo(null);
@@ -376,7 +449,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                   </button>
                 </div>
 
-                {promos.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-400">Loading promo codes...</p>
+                  </div>
+                ) : promos.length === 0 ? (
                   <div className="text-center py-12">
                     <Tag className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-white mb-2">No Promo Codes</h3>
@@ -389,7 +466,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                     {promos.map((promo) => (
                       <div
                         key={promo.id}
-                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div>
@@ -411,12 +488,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                             <button
                               onClick={() => handleEditPromo(promo)}
                               className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                              title="Edit Promo"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeletePromo(promo.id)}
                               className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Delete Promo"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -451,9 +530,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
 
             {activeTab === 'bookings' && (
               <div>
-                <h2 className="text-xl font-semibold text-white mb-6">Bookings</h2>
+                <h2 className="text-xl font-semibold text-white mb-6">
+                  Bookings {bookings.length > 0 && `(${bookings.length})`}
+                </h2>
 
-                {bookings.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-400">Loading bookings...</p>
+                  </div>
+                ) : bookings.length === 0 ? (
                   <div className="text-center py-12">
                     <Users className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-white mb-2">No Bookings Yet</h3>
@@ -466,7 +551,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                     {bookings.map((booking) => (
                       <div
                         key={booking.id}
-                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4"
+                        className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div>
@@ -476,7 +561,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                             <p className="text-slate-400 text-sm">
                               {booking.profiles?.full_name ||
                                 booking.profiles?.email ||
-                                booking.profiles?.phone}
+                                booking.profiles?.phone ||
+                                'Unknown'}
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -511,7 +597,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = () => {
                           </div>
                           <div>
                             <p className="text-slate-500">Passengers</p>
-                            <p className="text-slate-300">{booking.passengers.length}</p>
+                            <p className="text-slate-300">{booking.passengers?.length || 0}</p>
                           </div>
                           <div>
                             <p className="text-slate-500">Amount</p>
