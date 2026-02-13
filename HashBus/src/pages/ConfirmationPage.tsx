@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle, Download, Home, Mail, Phone, MapPin, Calendar, Clock, Users, Navigation } from 'lucide-react';
 import { Booking } from '../types';
 import { formatCurrency, formatDate, formatTime } from '../utils/formatters';
+import { downloadTicketAsPDF } from '../utils/generatePDF';
 import { Button } from '../components/Button';
 
 interface ConfirmationPageProps {
@@ -10,8 +11,8 @@ interface ConfirmationPageProps {
 }
 
 export const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ booking, onNewBooking }) => {
-  const handleDownload = () => {
-    alert('Ticket download feature - UI only');
+  const handleDownload = async () => {
+    await downloadTicketAsPDF(booking);
   };
 
   return (
@@ -36,11 +37,12 @@ export const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ booking, onN
               </div>
               <Button
                 onClick={handleDownload}
+                data-download-button
                 variant="secondary"
                 className="sm:w-auto w-full bg-white/20 hover:bg-white/30 border-white/30"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download Ticket
+                Download Ticket (PDF)
               </Button>
             </div>
           </div>
