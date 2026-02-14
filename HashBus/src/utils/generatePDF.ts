@@ -3,7 +3,7 @@ import { Booking, Passenger } from '../types';
 
 export const generateTicketPDF = async (booking: Booking, allPassengers?: Passenger[]) => {
   try {
-    console.log('Starting professional MakeMyTrip-style PDF generation...');
+    console.log('🎫 Starting professional ticket PDF generation...');
 
     const passengers = allPassengers && allPassengers.length > 0 
       ? allPassengers 
@@ -24,32 +24,22 @@ export const generateTicketPDF = async (booking: Booking, allPassengers?: Passen
     pdf.setFillColor(248, 249, 250);
     pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
-    // ==================== TOP HEADER SECTION ====================
-    drawHeaderSection(pdf, pageWidth, booking);
-
-    // ==================== MAIN CONTENT AREA ====================
-    let yPos = 28;
-
-    // Journey card
-    yPos = drawJourneyCard(pdf, pageWidth, yPos, booking);
-
-    // Key details row
-    yPos = drawDetailsRow(pdf, pageWidth, yPos, booking);
-
-    // Passenger & Location details
-    yPos = drawPassengerLocationDetails(pdf, pageWidth, yPos, booking, passengers);
-
-    // Bus & Price section (side by side)
-    yPos = drawBusAndPriceSection(pdf, pageWidth, yPos, booking, passengers);
-
-    // Important info footer
+    // ==================== SECTIONS ====================
+    drawHeaderSection(pdf, pageWidth);
+    let yPos = drawBookingIDSection(pdf, pageWidth, 25, booking);
+    yPos = drawJourneySection(pdf, pageWidth, yPos, booking);
+    yPos = drawDetailsBoxes(pdf, pageWidth, yPos, booking);
+    yPos = drawPassengerSection(pdf, pageWidth, yPos, passengers, booking);
+    yPos = drawPickupDropSection(pdf, pageWidth, yPos, booking);
+    yPos = drawBusDetailsSection(pdf, pageWidth, yPos, booking);
+    yPos = drawPriceSection(pdf, pageWidth, yPos, booking);
     drawImportantInfoFooter(pdf, pageWidth, pageHeight);
 
     // Download
     const fileName = `HashBus_Ticket_${booking.id.substring(0, 8).toUpperCase()}_${Date.now()}.pdf`;
     pdf.save(fileName);
 
-    console.log('✅ Professional MakeMyTrip-style PDF generated successfully');
+    console.log('✅ Professional ticket PDF generated successfully');
     return true;
   } catch (error) {
     console.error('❌ Error generating PDF:', error);
@@ -59,331 +49,444 @@ export const generateTicketPDF = async (booking: Booking, allPassengers?: Passen
 
 // ==================== HELPER FUNCTIONS ====================
 
-const drawHeaderSection = (pdf: any, pageWidth: number, booking: Booking) => {
-  // Top colored bar - HashBus brand color
+const drawHeaderSection = (pdf: any, pageWidth: number) => {
+  // Gradient-like top bar
   pdf.setFillColor(212, 175, 55);
-  pdf.rect(0, 0, pageWidth, 4, 'F');
+  pdf.rect(0, 0, pageWidth, 3, 'F');
 
   // White header background
   pdf.setFillColor(255, 255, 255);
-  pdf.rect(0, 4, pageWidth, 20, 'F');
+  pdf.rect(0, 3, pageWidth, 18, 'F');
 
-  // Logo placeholder - you can add actual logo
-  pdf.setFontSize(16);
+  // Logo section
+  pdf.setFontSize(18);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(212, 175, 55);
-  pdf.text('HashBus', 12, 15);
+  pdf.text('HashBus', 15, 15);
 
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
-  pdf.text('Travel, Upgraded', 12, 19);
+  pdf.text('Travel, Upgraded', 15, 19);
 
-  // Booking ID on right
+  // Divider
+  pdf.setDrawColor(230, 230, 230);
+  pdf.setLineWidth(0.3);
+  pdf.line(0, 21, pageWidth, 21);
+};
+
+const drawBookingIDSection = (pdf: any, pageWidth: number, yPos: number, booking: Booking) => {
+  // Light background
+  pdf.setFillColor(250, 250, 250);
+  pdf.rect(0, yPos, pageWidth, 10, 'F');
+
+  // Booking ID label
   pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(120, 120, 120);
-  pdf.text('BOOKING ID', pageWidth - 60, 11);
+  pdf.text('BOOKING ID', 15, yPos + 3);
+
+  // Booking ID value
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(212, 175, 55);
+  const bookingId = `HB${booking.id.substring(0, 10).toUpperCase()}`;
+  pdf.text(bookingId, 15, yPos + 8);
+
+  // Journey date on right
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(120, 120, 120);
+  pdf.text('Journey Date', pageWidth - 60, yPos + 3);
+
+  const dateStr = booking.journeyDate instanceof Date 
+    ? booking.journeyDate.toLocaleDateString('en-GB')
+    : String(booking.journeyDate);
 
   pdf.setFontSize(10);
   pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(212, 175, 55);
-  pdf.text(`HB${booking.id.substring(0, 10).toUpperCase()}`, pageWidth - 60, 17);
+  pdf.setTextColor(20, 20, 30);
+  pdf.text(dateStr, pageWidth - 60, yPos + 8);
 
-  // Divider
-  pdf.setDrawColor(220, 220, 220);
-  pdf.setLineWidth(0.5);
-  pdf.line(10, 24, pageWidth - 10, 24);
+  return yPos + 12;
 };
 
-const drawJourneyCard = (pdf: any, pageWidth: number, yPos: number, booking: Booking) => {
-  // Card background
+const drawJourneySection = (pdf: any, pageWidth: number, yPos: number, booking: Booking) => {
+  // Main journey card
   pdf.setFillColor(255, 255, 255);
-  pdf.setDrawColor(220, 220, 220);
-  pdf.setLineWidth(0.5);
-  pdf.rect(10, yPos, pageWidth - 20, 35, 'FD');
+  pdf.setDrawColor(212, 175, 55);
+  pdf.setLineWidth(1);
+  pdf.rect(15, yPos, pageWidth - 30, 45, 'FD');
 
-  // From city
+  // From city - Large
   const fromCity = booking.route.from.name.substring(0, 3).toUpperCase();
-  pdf.setFontSize(24);
+  pdf.setFontSize(32);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(20, 20, 30);
-  pdf.text(fromCity, 18, yPos + 12);
+  pdf.text(fromCity, 25, yPos + 18);
 
+  // From city name
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
-  pdf.text(booking.route.from.name, 18, yPos + 18);
+  pdf.text(booking.route.from.name, 25, yPos + 24);
 
-  // Arrow and journey time
-  pdf.setFontSize(16);
-  pdf.setTextColor(212, 175, 55);
-  pdf.setFont('helvetica', 'bold');
+  // Journey duration in center
   const centerX = pageWidth / 2;
-  pdf.text('→', centerX - 5, yPos + 12);
+  pdf.setFontSize(18);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(212, 175, 55);
+  pdf.text('→', centerX - 3, yPos + 18);
 
-  pdf.setFontSize(7);
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(120, 120, 120);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(booking.bus.duration || '8h 1m', centerX - 8, yPos + 18);
+  pdf.text(booking.bus.duration || '8h 0m', centerX - 8, yPos + 24);
 
-  // To city
+  // To city - Large
   const toCity = booking.route.to.name.substring(0, 3).toUpperCase();
-  pdf.setFontSize(24);
+  pdf.setFontSize(32);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(20, 20, 30);
-  pdf.text(toCity, pageWidth - 35, yPos + 12);
+  pdf.text(toCity, pageWidth - 45, yPos + 18);
 
+  // To city name
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
-  pdf.text(booking.route.to.name, pageWidth - 35, yPos + 18);
+  pdf.text(booking.route.to.name, pageWidth - 45, yPos + 24);
 
-  // Date and departure time on right
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(20, 20, 30);
-  const dateStr = booking.journeyDate instanceof Date 
-    ? booking.journeyDate.toLocaleDateString('en-GB') 
-    : String(booking.journeyDate);
-  pdf.text(dateStr, pageWidth - 50, yPos + 30);
-
-  pdf.setFontSize(8);
+  // Departure time info on right
+  pdf.setFontSize(7);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
-  const depTime = booking.bus.departureTime.includes(':') 
-    ? booking.bus.departureTime 
-    : new Date(booking.bus.departureTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  pdf.text(`Departs ${depTime}`, pageWidth - 50, yPos + 35);
+  pdf.text('Departure', pageWidth - 45, yPos + 31);
 
-  return yPos + 39;
+  const depTime = booking.bus.departureTime;
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(212, 175, 55);
+  pdf.text(depTime, pageWidth - 45, yPos + 38);
+
+  return yPos + 50;
 };
 
-const drawDetailsRow = (pdf: any, pageWidth: number, yPos: number, booking: Booking) => {
-  const boxWidth = (pageWidth - 30) / 3 - 2;
+const drawDetailsBoxes = (pdf: any, pageWidth: number, yPos: number, booking: Booking) => {
+  const boxWidth = (pageWidth - 45) / 3;
+  const boxHeight = 22;
+  const margin = 15;
 
   // Box 1: Bus
-  pdf.setFillColor(240, 248, 255);
-  pdf.setDrawColor(200, 220, 240);
-  pdf.setLineWidth(0.5);
-  pdf.rect(10, yPos, boxWidth, 18, 'FD');
+  drawDetailBox(pdf, margin, yPos, boxWidth, boxHeight, 
+    'BUS', 
+    booking.bus.name.substring(0, 20),
+    [240, 248, 255],
+    [200, 220, 240]
+  );
+
+  // Box 2: Seat
+  const seatNumbers = booking.selectedSeats.map(s => s.number).join(', ');
+  drawDetailBox(pdf, margin + boxWidth + 7, yPos, boxWidth, boxHeight,
+    'SEAT',
+    seatNumbers,
+    [245, 245, 245],
+    [220, 220, 220],
+    true
+  );
+
+  // Box 3: Passengers
+  drawDetailBox(pdf, margin + (boxWidth + 7) * 2, yPos, boxWidth, boxHeight,
+    'PASSENGERS',
+    booking.selectedSeats.length.toString(),
+    [240, 245, 240],
+    [200, 220, 200],
+    true
+  );
+
+  return yPos + boxHeight + 5;
+};
+
+const drawDetailBox = (
+  pdf: any,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  value: string,
+  fillColor: number[],
+  borderColor: number[],
+  centerValue: boolean = false
+) => {
+  // Border
+  pdf.setDrawColor(...borderColor);
+  pdf.setLineWidth(1);
+  pdf.setFillColor(...fillColor);
+  pdf.rect(x, y, width, height, 'FD');
+
+  // Label
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(100, 100, 100);
+  pdf.text(label, x + 5, y + 4);
+
+  // Value
+  pdf.setFontSize(centerValue ? 16 : 10);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(centerValue ? 212 : 20, centerValue ? 175 : 20, centerValue ? 55 : 30);
+  
+  const textX = centerValue ? x + width / 2 : x + 5;
+  const textY = y + height - 6;
+  
+  if (centerValue) {
+    pdf.text(value, textX, textY, { align: 'center' });
+  } else {
+    pdf.text(value.substring(0, 15), textX, textY);
+  }
+};
+
+const drawPassengerSection = (
+  pdf: any,
+  pageWidth: number,
+  yPos: number,
+  passengers: Passenger[],
+  booking: Booking
+) => {
+  // Header background
+  pdf.setFillColor(250, 250, 250);
+  pdf.rect(15, yPos, pageWidth - 30, 6, 'F');
+
+  // Header
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(20, 20, 30);
+  pdf.text(`PASSENGER DETAILS (${passengers.length})`, 20, yPos + 4);
+
+  yPos += 8;
+
+  // Passenger details
+  passengers.forEach((passenger, index) => {
+    const seatNum = booking.selectedSeats[index]?.number || 'N/A';
+    
+    // Passenger row background
+    if (index % 2 === 0) {
+      pdf.setFillColor(248, 249, 250);
+      pdf.rect(15, yPos, pageWidth - 30, 6, 'F');
+    }
+
+    // Passenger number and name
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(20, 20, 30);
+    pdf.text(`${index + 1}. ${passenger.name}`, 20, yPos + 4);
+
+    // Seat and age info
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(120, 120, 120);
+    pdf.text(`Seat ${seatNum} | Age ${passenger.age || 'N/A'} | ${passenger.gender || 'N/A'}`, pageWidth - 60, yPos + 4);
+
+    yPos += 6;
+  });
+
+  return yPos + 3;
+};
+
+const drawPickupDropSection = (
+  pdf: any,
+  pageWidth: number,
+  yPos: number,
+  booking: Booking
+) => {
+  const boxWidth = (pageWidth - 45) / 2;
+  const margin = 15;
+
+  // Pickup box
+  pdf.setDrawColor(200, 220, 200);
+  pdf.setLineWidth(1);
+  pdf.setFillColor(240, 248, 240);
+  pdf.rect(margin, yPos, boxWidth, 20, 'FD');
 
   pdf.setFontSize(7);
-  pdf.setTextColor(100, 150, 200);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('BUS', 15, yPos + 4);
+  pdf.setTextColor(100, 150, 100);
+  pdf.text('PICKUP POINT', margin + 5, yPos + 3);
 
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(20, 20, 30);
-  pdf.text(booking.bus.name.substring(0, 25), 15, yPos + 12);
-
-  // Box 2: Seats
-  const xPos2 = 10 + boxWidth + 5;
-  pdf.setFillColor(245, 245, 245);
-  pdf.setDrawColor(220, 220, 220);
-  pdf.rect(xPos2, yPos, boxWidth, 18, 'FD');
+  const pickupText = booking.pickupPoint.name.substring(0, 25);
+  pdf.text(pickupText, margin + 5, yPos + 10);
 
   pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(120, 120, 120);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('YOUR SEAT', xPos2 + 5, yPos + 4);
+  pdf.text('Arrive 15 minutes before', margin + 5, yPos + 16);
 
-  pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(212, 175, 55);
-  const seatNumbers = booking.selectedSeats.map(s => s.number).join(', ');
-  pdf.text(seatNumbers, xPos2 + 5, yPos + 13);
-
-  // Box 3: Passengers
-  const xPos3 = 10 + (boxWidth + 5) * 2;
-  pdf.setFillColor(240, 245, 240);
-  pdf.setDrawColor(200, 220, 200);
-  pdf.rect(xPos3, yPos, boxWidth, 18, 'FD');
+  // Drop box
+  pdf.setDrawColor(220, 200, 200);
+  pdf.setLineWidth(1);
+  pdf.setFillColor(248, 240, 240);
+  pdf.rect(margin + boxWidth + 7, yPos, boxWidth, 20, 'FD');
 
   pdf.setFontSize(7);
-  pdf.setTextColor(100, 150, 100);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('PASSENGER(S)', xPos3 + 5, yPos + 4);
+  pdf.setTextColor(150, 100, 100);
+  pdf.text('DROP POINT', margin + boxWidth + 12, yPos + 3);
 
-  pdf.setFontSize(12);
+  pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(20, 20, 30);
-  pdf.text(booking.selectedSeats.length.toString(), xPos3 + 5, yPos + 13);
+  const dropText = booking.dropPoint.name.substring(0, 25);
+  pdf.text(dropText, margin + boxWidth + 12, yPos + 10);
 
-  return yPos + 22;
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(120, 120, 120);
+  pdf.text('Estimated arrival', margin + boxWidth + 12, yPos + 16);
+
+  return yPos + 25;
 };
 
-const drawPassengerLocationDetails = (pdf: any, pageWidth: number, yPos: number, booking: Booking, passengers: Passenger[]) => {
-  // Passenger section
-  pdf.setFillColor(255, 255, 255);
-  pdf.setDrawColor(220, 220, 220);
-  pdf.setLineWidth(0.5);
-  pdf.rect(10, yPos, pageWidth - 20, 28, 'FD');
-
-  // Header
-  pdf.setFillColor(248, 249, 250);
-  pdf.rect(10, yPos, pageWidth - 20, 5, 'F');
+const drawBusDetailsSection = (
+  pdf: any,
+  pageWidth: number,
+  yPos: number,
+  booking: Booking
+) => {
+  // Header background
+  pdf.setFillColor(250, 250, 250);
+  pdf.rect(15, yPos, pageWidth - 30, 6, 'F');
 
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(20, 20, 30);
-  pdf.text(`PASSENGER DETAILS (${passengers.length})`, 15, yPos + 3.5);
+  pdf.text('BUS DETAILS', 20, yPos + 4);
 
-  // Passenger info
-  let passengerY = yPos + 7;
-  passengers.slice(0, 2).forEach((passenger, index) => {
-    const seatNum = booking.selectedSeats[index]?.number || 'N/A';
-    
-    pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(20, 20, 30);
-    pdf.text(`${index + 1}. ${passenger.name}`, 15, passengerY);
+  yPos += 8;
+
+  // Details
+  const details = [
+    { label: 'Bus Name:', value: booking.bus.name },
+    { label: 'Bus Type:', value: booking.bus.coachType },
+    { label: 'Registration:', value: booking.bus.number },
+    { label: 'Total Seats:', value: booking.bus.totalSeats.toString() },
+  ];
+
+  details.forEach((detail, index) => {
+    if (index % 2 === 0) {
+      pdf.setFillColor(248, 249, 250);
+      pdf.rect(15, yPos, pageWidth - 30, 5, 'F');
+    }
 
     pdf.setFontSize(7);
     pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(100, 100, 100);
-    pdf.text(`Seat ${seatNum} | Age ${passenger.age}`, 100, passengerY);
+    pdf.setTextColor(120, 120, 120);
+    pdf.text(detail.label, 20, yPos + 3.5);
 
-    passengerY += 6;
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(20, 20, 30);
+    pdf.text(detail.value.substring(0, 40), 60, yPos + 3.5);
+
+    yPos += 5;
   });
 
-  // Pickup & Drop section
-  const halfWidth = (pageWidth - 30) / 2 - 2;
-  
-  // Pickup
-  pdf.setFillColor(240, 248, 240);
-  pdf.setDrawColor(200, 220, 200);
-  pdf.rect(10, yPos + 24, halfWidth, 18, 'FD');
-
-  pdf.setFontSize(7);
-  pdf.setTextColor(100, 150, 100);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('PICKUP', 15, yPos + 27);
-
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(20, 20, 30);
-  const pickupText = booking.pickupPoint.name.substring(0, 20);
-  pdf.text(pickupText, 15, yPos + 33);
-
-  // Drop
-  pdf.setFillColor(248, 240, 240);
-  pdf.setDrawColor(220, 200, 200);
-  pdf.rect(10 + halfWidth + 4, yPos + 24, halfWidth, 18, 'FD');
-
-  pdf.setFontSize(7);
-  pdf.setTextColor(150, 100, 100);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('DROP', 15 + halfWidth + 4, yPos + 27);
-
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(20, 20, 30);
-  const dropText = booking.dropPoint.name.substring(0, 20);
-  pdf.text(dropText, 15 + halfWidth + 4, yPos + 33);
-
-  return yPos + 46;
+  return yPos + 3;
 };
 
-const drawBusAndPriceSection = (pdf: any, pageWidth: number, yPos: number, booking: Booking, passengers: Passenger[]) => {
-  const halfWidth = (pageWidth - 30) / 2 - 2;
+const drawPriceSection = (
+  pdf: any,
+  pageWidth: number,
+  yPos: number,
+  booking: Booking
+) => {
+  const boxWidth = pageWidth - 30;
+  const margin = 15;
 
-  // Bus Details (Left)
-  pdf.setFillColor(255, 255, 255);
-  pdf.setDrawColor(220, 220, 220);
-  pdf.setLineWidth(0.5);
-  pdf.rect(10, yPos, halfWidth, 30, 'FD');
-
-  pdf.setFillColor(245, 245, 245);
-  pdf.rect(10, yPos, halfWidth, 5, 'F');
-
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(20, 20, 30);
-  pdf.text('BUS DETAILS', 15, yPos + 3.5);
-
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text(`Bus: ${booking.bus.name}`, 15, yPos + 10);
-  pdf.text(`Type: ${booking.bus.coachType}`, 15, yPos + 15);
-  pdf.text(`Reg: ${booking.bus.number}`, 15, yPos + 20);
-  pdf.text(`Total Seats: ${booking.bus.totalSeats}`, 15, yPos + 25);
-
-  // Price Breakdown (Right)
+  // Background
   pdf.setFillColor(212, 175, 55);
-  pdf.rect(10 + halfWidth + 4, yPos, halfWidth, 30, 'FD');
+  pdf.setDrawColor(212, 175, 55);
+  pdf.rect(margin, yPos, boxWidth, 35, 'FD');
 
-  pdf.setFontSize(8);
+  // Header
+  pdf.setFontSize(10);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(255, 255, 255);
-  pdf.text('PRICE BREAKDOWN', 15 + halfWidth + 4, yPos + 3.5);
+  pdf.text('PRICE BREAKDOWN', margin + 5, yPos + 5);
 
   // Calculate prices
   const subtotal = booking.selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
   const taxes = Math.round(subtotal * 0.05);
   const total = subtotal + taxes;
 
-  pdf.setFontSize(7);
+  // Price details
+  pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(255, 255, 255);
-  
-  const baseText = `Base Fare (${booking.selectedSeats.length} × ${Math.round(subtotal / booking.selectedSeats.length)})`;
-  pdf.text(baseText, 15 + halfWidth + 4, yPos + 10);
-  pdf.text(`Subtotal: ₹${subtotal}`, 15 + halfWidth + 4, yPos + 14);
 
-  pdf.text(`Taxes & Fees: ₹${taxes}`, 15 + halfWidth + 4, yPos + 18);
+  const baseFare = Math.round(subtotal / booking.selectedSeats.length);
+  pdf.text(`Base Fare (${booking.selectedSeats.length} × ₹${baseFare})`, margin + 5, yPos + 12);
+  pdf.text(`₹${subtotal}`, pageWidth - 35, yPos + 12);
+
+  pdf.text('Taxes & Service Fee', margin + 5, yPos + 18);
+  pdf.text(`₹${taxes}`, pageWidth - 35, yPos + 18);
+
+  // Divider
+  pdf.setDrawColor(255, 255, 255);
+  pdf.setLineWidth(0.5);
+  pdf.line(margin + 5, yPos + 22, pageWidth - 20, yPos + 22);
 
   // Total
-  pdf.setLineWidth(0.5);
-  pdf.setDrawColor(255, 255, 255);
-  pdf.line(15 + halfWidth + 4, yPos + 20, pageWidth - 10, yPos + 20);
-
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('TOTAL PAYABLE', 15 + halfWidth + 4, yPos + 25);
-  pdf.text(`₹${total}`, pageWidth - 25, yPos + 25);
+  pdf.text('TOTAL PAYABLE', margin + 5, yPos + 29);
+  pdf.text(`₹${total}`, pageWidth - 35, yPos + 29);
 
-  return yPos + 34;
+  return yPos + 38;
 };
 
 const drawImportantInfoFooter = (pdf: any, pageWidth: number, pageHeight: number) => {
-  const footerY = pageHeight - 22;
+  const footerY = pageHeight - 28;
 
   // Divider
   pdf.setDrawColor(220, 220, 220);
-  pdf.setLineWidth(0.5);
-  pdf.line(10, footerY, pageWidth - 10, footerY);
+  pdf.setLineWidth(0.3);
+  pdf.line(15, footerY, pageWidth - 15, footerY);
 
   // Important info box
   pdf.setFillColor(255, 251, 235);
   pdf.setDrawColor(255, 152, 0);
-  pdf.setLineWidth(0.5);
-  pdf.rect(10, footerY + 2, pageWidth - 20, 15, 'FD');
+  pdf.setLineWidth(1);
+  pdf.rect(15, footerY + 3, pageWidth - 30, 16, 'FD');
 
-  pdf.setFontSize(7);
+  // Header
+  pdf.setFontSize(8);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(255, 102, 0);
-  pdf.text('IMPORTANT INFORMATION', 15, footerY + 5);
+  pdf.text('⚠ IMPORTANT INFORMATION', 20, footerY + 7);
+
+  // Information points
+  const info = [
+    '• Arrive 15 minutes before departure time',
+    '• Carry a valid ID proof (Passport/Aadhaar/DL)',
+    '• This ticket is non-transferable',
+    '• Contact: +91 91071 68168 | Email: support@hashbus.com',
+  ];
 
   pdf.setFontSize(6);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(80, 80, 80);
-  const terms = [
-    '• Arrive 15 minutes before departure • Carry valid ID proof',
-    '• Non-transferable ticket • Contact: +91 91071 68168'
-  ];
-  
-  terms.forEach((term, index) => {
-    pdf.text(term, 15, footerY + 9 + (index * 4));
+
+  info.forEach((line, index) => {
+    pdf.text(line, 20, footerY + 11 + (index * 3.5));
   });
 
-  // Bottom branding
-  pdf.setFontSize(7);
+  // Footer branding
+  pdf.setFontSize(6);
   pdf.setFont('helvetica', 'italic');
   pdf.setTextColor(150, 150, 150);
-  const centerX = pageWidth / 2;
-  pdf.text('Thank you for choosing HashBus - Travel, Upgraded', centerX, pageHeight - 2, { align: 'center' });
+  pdf.text('Thank you for choosing HashBus - Travel, Upgraded', pageWidth / 2, pageHeight - 1, { align: 'center' });
 };
 
 export const downloadTicketAsPDF = async (booking: Booking, allPassengers?: Passenger[]) => {

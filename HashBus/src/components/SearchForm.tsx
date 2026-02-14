@@ -29,81 +29,155 @@ export const SearchForm: React.FC<SearchFormProps> = ({ onSearch }) => {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-5xl mx-auto">
-      <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl shadow-2xl border border-slate-700/50 p-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="relative">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              From
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
-              <select
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all appearance-none cursor-pointer"
-              >
-                {cities.map((city) => (
-                  <option key={city.id} value={city.name}>
-                    {city.name}
-                  </option>
-                ))}
-              </select>
+      {/* Premium glass-morphism container with blend effects */}
+      <div className="relative group">
+        {/* Gradient blur background for premium effect */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/5 via-orange-500/3 to-amber-500/5 rounded-2xl blur-xl opacity-0 group-hover:opacity-40 transition-opacity duration-500"></div>
+        
+        {/* Main container - TRANSPARENT WITH LIGHT BACKDROP */}
+        <div className="relative bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg border border-white/10 p-8 overflow-hidden hover:bg-white/8 transition-all duration-300">
+          {/* Minimal gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/2 to-transparent pointer-events-none rounded-2xl"></div>
+          
+          {/* Content wrapper */}
+          <div className="relative z-10">
+            {/* From, Swap, To Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              {/* From Input */}
+              <div className="relative group/input">
+                <label className="block text-sm font-semibold text-white mb-3 drop-shadow-md">
+                  From
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-400 z-10" />
+                  <select
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-800/60 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/40 focus:bg-slate-800/70 transition-all duration-300 appearance-none cursor-pointer hover:bg-slate-800/70 hover:border-white/30 group-hover/input:shadow-lg group-hover/input:shadow-amber-500/20 placeholder-white/50"
+                  >
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.name} className="bg-slate-900 text-white">
+                        {city.name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Input glow effect */}
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/0 group-focus-within/input:from-amber-500/10 group-focus-within/input:via-transparent group-focus-within/input:to-amber-500/10 transition-all duration-300 pointer-events-none"></div>
+                </div>
+              </div>
+
+              {/* Swap Button */}
+              <div className="relative flex items-end justify-center pb-1">
+                <button
+                  type="button"
+                  onClick={handleSwap}
+                  className="p-3 bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 rounded-full text-white transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-amber-500/40 hover:scale-110 active:scale-95 border border-amber-400/40 backdrop-blur-sm group/btn"
+                >
+                  <ArrowRightLeft className="w-5 h-5 group-hover/btn:rotate-180 transition-transform duration-300" />
+                </button>
+              </div>
+
+              {/* To Input */}
+              <div className="relative group/input">
+                <label className="block text-sm font-semibold text-white mb-3 drop-shadow-md">
+                  To
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-400 z-10" />
+                  <select
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-800/60 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/40 focus:bg-slate-800/70 transition-all duration-300 appearance-none cursor-pointer hover:bg-slate-800/70 hover:border-white/30 group-hover/input:shadow-lg group-hover/input:shadow-amber-500/20 placeholder-white/50"
+                  >
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.name} className="bg-slate-900 text-white">
+                        {city.name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Input glow effect */}
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/0 group-focus-within/input:from-amber-500/10 group-focus-within/input:via-transparent group-focus-within/input:to-amber-500/10 transition-all duration-300 pointer-events-none"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Date and Search Button Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+              {/* Date Input */}
+              <div className="relative group/input">
+                <label className="block text-sm font-semibold text-white mb-3 drop-shadow-md">
+                  Journey Date
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-400 z-10" />
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-800/60 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/40 focus:bg-slate-800/70 transition-all duration-300 hover:bg-slate-800/70 hover:border-white/30 group-hover/input:shadow-lg group-hover/input:shadow-amber-500/20 placeholder-white/50"
+                  />
+                  {/* Input glow effect */}
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/0 group-focus-within/input:from-amber-500/10 group-focus-within/input:via-transparent group-focus-within/input:to-amber-500/10 transition-all duration-300 pointer-events-none"></div>
+                </div>
+              </div>
+
+              {/* Search Button */}
+              <div className="relative group/btn h-full flex items-end">
+                <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-xl blur opacity-0 group-hover/btn:opacity-30 transition-opacity duration-300"></div>
+                <Button 
+                  type="submit" 
+                  size="lg" 
+                  className="relative w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold shadow-lg hover:shadow-amber-500/30 border border-amber-400/40 transition-all duration-300 group-hover/btn:border-amber-300 py-4"
+                >
+                  Search Buses
+                </Button>
+              </div>
             </div>
           </div>
-
-          <div className="relative flex items-end justify-center">
-            <button
-              type="button"
-              onClick={handleSwap}
-              className="mb-2 p-3 bg-amber-500 hover:bg-amber-600 rounded-full text-white transition-all duration-200 shadow-lg hover:shadow-amber-500/50 hover:scale-110"
-            >
-              <ArrowRightLeft className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="relative">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              To
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
-              <select
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all appearance-none cursor-pointer"
-              >
-                {cities.map((city) => (
-                  <option key={city.id} value={city.name}>
-                    {city.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Journey Date
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full pl-12 pr-4 py-4 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-              />
-            </div>
-          </div>
-
-          <Button type="submit" size="lg" className="w-full md:w-auto">
-            Search Buses
-          </Button>
         </div>
       </div>
+
+      {/* Animated styles */}
+      <style>{`
+        /* Custom select styling */
+        select::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        select::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.1);
+          border-radius: 4px;
+        }
+
+        select::-webkit-scrollbar-thumb {
+          background: rgba(217, 119, 6, 0.5);
+          border-radius: 4px;
+        }
+
+        select::-webkit-scrollbar-thumb:hover {
+          background: rgba(217, 119, 6, 0.8);
+        }
+
+        /* Smooth transitions */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          cursor: pointer;
+          filter: invert(0.8) brightness(1.2);
+        }
+
+        /* Focus glow animation */
+        @keyframes focusGlow {
+          0% {
+            box-shadow: 0 0 0 0 rgba(251, 146, 60, 0);
+          }
+          50% {
+            box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.1);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(251, 146, 60, 0);
+          }
+        }
+      `}</style>
     </form>
   );
 };

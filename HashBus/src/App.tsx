@@ -384,9 +384,9 @@ const AppContent: React.FC = () => {
           <PassengerDetailsPage
             bus={selectedBus}
             selectedSeats={selectedSeats}
-            onContinue={selectedSeats.length === 1 ? handlePassengerSubmit : handlePassengersSubmit}
-            onBack={() => setCurrentPage('seats')}
             searchParams={searchParams}
+            onPaymentClick={() => setCurrentPage('payment')}
+            onBack={() => setCurrentPage('seats')}
           />
         );
 
