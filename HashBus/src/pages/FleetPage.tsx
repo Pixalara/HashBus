@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Star, Zap, Wifi, Coffee, Music, Tv, Wind } from 'lucide-react';
+import { Shield, Star, Zap, Coffee, Music, Tv, Wind } from 'lucide-react';
 
 export const FleetPage: React.FC = () => {
   return (
@@ -54,9 +54,9 @@ export const FleetPage: React.FC = () => {
                       <Zap className="w-6 h-6 text-amber-400" />
                     </div>
                     <div>
-                      <h4 className="text-white font-semibold mb-1">Premium Recline Seats</h4>
+                      <h4 className="text-white font-semibold mb-1">Premium Sleeper Bunks</h4>
                       <p className="text-slate-400 text-sm">
-                        Extra-wide seats with 180° recline and adjustable leg rest
+                        Extra-wide beds with adjustable leg rest for ultimate comfort
                       </p>
                     </div>
                   </div>
@@ -75,12 +75,12 @@ export const FleetPage: React.FC = () => {
 
                   <div className="flex items-start gap-4">
                     <div className="bg-amber-500/10 p-3 rounded-lg flex-shrink-0">
-                      <Wifi className="w-6 h-6 text-amber-400" />
+                      <Zap className="w-6 h-6 text-amber-400" />
                     </div>
                     <div>
-                      <h4 className="text-white font-semibold mb-1">High-Speed WiFi</h4>
+                      <h4 className="text-white font-semibold mb-1">USB Charging Ports</h4>
                       <p className="text-slate-400 text-sm">
-                        Stay connected throughout your journey
+                        Keep your devices charged throughout
                       </p>
                     </div>
                   </div>
@@ -165,21 +165,9 @@ export const FleetPage: React.FC = () => {
                       <Zap className="w-6 h-6 text-blue-400" />
                     </div>
                     <div>
-                      <h4 className="text-white font-semibold mb-1">Spacious Seating</h4>
+                      <h4 className="text-white font-semibold mb-1">Comfortable Sleeper Bunks</h4>
                       <p className="text-slate-400 text-sm">
-                        Comfortable seats with ample legroom and recline
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="bg-blue-500/10 p-3 rounded-lg flex-shrink-0">
-                      <Wifi className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold mb-1">WiFi Connectivity</h4>
-                      <p className="text-slate-400 text-sm">
-                        Complimentary internet access onboard
+                        Spacious beds with ample legroom for restful sleep
                       </p>
                     </div>
                   </div>
@@ -222,6 +210,18 @@ export const FleetPage: React.FC = () => {
 
                   <div className="flex items-start gap-4">
                     <div className="bg-blue-500/10 p-3 rounded-lg flex-shrink-0">
+                      <Coffee className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-semibold mb-1">Complimentary Snacks</h4>
+                      <p className="text-slate-400 text-sm">
+                        Refreshments and beverages onboard
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="bg-blue-500/10 p-3 rounded-lg flex-shrink-0">
                       <Shield className="w-6 h-6 text-blue-400" />
                     </div>
                     <div>
@@ -253,7 +253,7 @@ export const FleetPage: React.FC = () => {
               <p className="text-slate-300">Support Available</p>
             </div>
             <div>
-              <div className="text-4xl font-bold text-amber-500 mb-2">50K+</div>
+              <div className="text-4xl font-bold text-amber-500 mb-2">10K+</div>
               <p className="text-slate-300">Happy Travelers</p>
             </div>
           </div>

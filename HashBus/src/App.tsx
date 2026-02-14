@@ -52,12 +52,13 @@ const AppContent: React.FC = () => {
     setSelectedSeats,
     passenger,
     setPassenger,
+    passengers,
+    setPassengers,
     booking,
     setBooking,
     resetBooking,
   } = useBooking();
 
-  // Helper function to convert 24-hour time to 12-hour format without timezone conversion
   const formatTime12Hour = (time: string): string => {
     const [hours, minutes] = time.split(':').map(Number);
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -66,20 +67,17 @@ const AppContent: React.FC = () => {
   };
 
   const calculateDuration = (departure: string, arrival: string): string => {
-    // Extract time parts and create dates for comparison
     const depTime = departure.split('T')[1]?.substring(0, 5) || '00:00';
     const arrTime = arrival.split('T')[1]?.substring(0, 5) || '00:00';
     const depDate = departure.split('T')[0];
     const arrDate = arrival.split('T')[0];
 
-    // Parse to minutes
     const [depHours, depMinutes] = depTime.split(':').map(Number);
     const [arrHours, arrMinutes] = arrTime.split(':').map(Number);
 
     let depTotalMinutes = depHours * 60 + depMinutes;
     let arrTotalMinutes = arrHours * 60 + arrMinutes;
 
-    // If arrival date is different (next day), add 24 hours
     if (arrDate > depDate) {
       arrTotalMinutes += 24 * 60;
     }
@@ -135,11 +133,6 @@ const AppContent: React.FC = () => {
       if (error) throw error;
 
       console.log('📋 All trips fetched:', trips?.length || 0);
-      if (trips) {
-        trips.forEach((trip: any) => {
-          console.log(`  - Trip: ${trip.departure_time}, Seats: ${trip.buses?.seats?.length || 0}`);
-        });
-      }
 
       if (!trips || trips.length === 0) {
         showToast('No trips found for this route', 'info');
@@ -148,15 +141,12 @@ const AppContent: React.FC = () => {
         return;
       }
 
-      // Filter trips by date - Normalize both dates to YYYY-MM-DD format
-      const searchDateNormalized = date; // Should already be YYYY-MM-DD from date picker
+      const searchDateNormalized = date;
       console.log('📅 Normalized search date:', searchDateNormalized);
 
       const filteredTrips = trips.filter((trip: any) => {
-        // Extract date part from ISO string: "2026-02-12T22:30:00" -> "2026-02-12"
         const tripDatePart = trip.departure_time.split('T')[0];
         const matches = tripDatePart === searchDateNormalized;
-        console.log(`  - Trip date: ${tripDatePart}, Matches: ${matches}`);
         return matches;
       });
 
@@ -170,22 +160,8 @@ const AppContent: React.FC = () => {
       }
 
       const formattedBuses: Bus[] = filteredTrips.map((trip: any) => {
-        // Use seats data from the trip query
         const dbSeats = trip.buses?.seats || [];
 
-        console.log(`🚌 Bus ${trip.buses?.name}:`, {
-          totalSeatsInDB: trip.buses?.total_seats,
-          fetchedSeats: dbSeats.length,
-          seatsData: dbSeats.map((s: any) => ({
-            number: s.seat_number,
-            deck: s.deck,
-            isSingle: s.is_single,
-            status: s.status,
-            isBlocked: s.is_blocked,
-          }))
-        });
-
-        // Format seats from database
         const formattedSeats: Seat[] = dbSeats.map((seat: any) => ({
           id: seat.id,
           number: seat.seat_number,
@@ -194,27 +170,30 @@ const AppContent: React.FC = () => {
           deck: seat.deck as 'upper' | 'lower',
           type: 'sleeper' as const,
           is_single: seat.is_single || false,
-          status: (seat.is_blocked || seat.status === 'booked') ? 'booked' : 'available',
+          status: seat.is_blocked || seat.status === 'booked' ? 'booked' : 'available',
           price: seat.price || parseFloat(trip.base_price),
         }));
 
-        const availableSeats = formattedSeats.filter(
-          s => s.status === 'available' && !s.is_blocked
-        ).length;
+        const totalSeats = formattedSeats.length;
+        const availableSeats = formattedSeats.filter(s => s.status === 'available').length;
 
-        console.log(`  - Available seats: ${availableSeats} / ${formattedSeats.length}`);
+        console.log('📊 Seat calculation:', {
+          bus: trip.buses?.name,
+          total: totalSeats,
+          available: availableSeats,
+          booked: totalSeats - availableSeats,
+        });
 
-        // Extract time parts directly from ISO string WITHOUT timezone conversion
-        const depTimePart = trip.departure_time.split('T')[1]?.substring(0, 5) || '00:00'; // HH:MM
-        const arrTimePart = trip.arrival_time.split('T')[1]?.substring(0, 5) || '00:00'; // HH:MM
+        const depTimePart = trip.departure_time.split('T')[1]?.substring(0, 5) || '00:00';
+        const arrTimePart = trip.arrival_time.split('T')[1]?.substring(0, 5) || '00:00';
 
         return {
           id: trip.bus_id,
           name: trip.buses?.name || 'Unknown Bus',
           number: trip.buses?.bus_number || 'N/A',
           coachType: trip.buses?.bus_type || 'Luxury Sleeper',
-          totalSeats: trip.buses?.total_seats || 0,
-          availableSeats,
+          totalSeats: totalSeats,
+          availableSeats: availableSeats,
           basePrice: parseFloat(trip.base_price),
           departureTime: formatTime12Hour(depTimePart),
           arrivalTime: formatTime12Hour(arrTimePart),
@@ -230,9 +209,6 @@ const AppContent: React.FC = () => {
       });
 
       console.log('🚌 Formatted buses:', formattedBuses.length);
-      formattedBuses.forEach((bus: Bus) => {
-        console.log(`  - ${bus.name}: ${bus.availableSeats} seats available`);
-      });
 
       setSearchResults(formattedBuses);
       setCurrentPage('search');
@@ -245,13 +221,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleSelectBus = (bus: Bus) => {
-    console.log('🎫 Bus selected:', {
-      name: bus.name,
-      availableSeats: bus.availableSeats,
-      totalSeats: bus.totalSeats,
-      seatCount: bus.seats?.length || 0,
-    });
-
+    console.log('🎫 Bus selected:', bus.name);
     setSelectedBus(bus);
     setSelectedSeats([]);
     setCurrentPage('pickupDrop');
@@ -264,13 +234,6 @@ const AppContent: React.FC = () => {
   };
 
   const handleSeatSelect = (seat: Seat) => {
-    console.log('💺 Seat toggled:', {
-      number: seat.number,
-      status: seat.status,
-      deck: seat.deck,
-      isSingle: seat.is_single,
-    });
-
     const isSelected = selectedSeats.some((s) => s.id === seat.id);
     if (isSelected) {
       setSelectedSeats(selectedSeats.filter((s) => s.id !== seat.id));
@@ -284,6 +247,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleContinueToPassenger = () => {
+    console.log('📋 Continuing to passenger details, seats:', selectedSeats.length);
     if (selectedSeats.length === 0) {
       showToast('Please select at least one seat', 'warning');
       return;
@@ -292,7 +256,16 @@ const AppContent: React.FC = () => {
   };
 
   const handlePassengerSubmit = (passengerData: Passenger) => {
+    console.log('👤 Passenger submitted:', passengerData.name);
     setPassenger(passengerData);
+    setPassengers([passengerData]);
+    setCurrentPage('payment');
+  };
+
+  const handlePassengersSubmit = (allPassengers: Passenger[]) => {
+    console.log('👥 All passengers submitted:', allPassengers.length);
+    setPassenger(allPassengers[0]);
+    setPassengers(allPassengers);
     setCurrentPage('payment');
   };
 
@@ -319,6 +292,7 @@ const AppContent: React.FC = () => {
           bus: selectedBus,
           selectedSeats,
           passenger,
+          passengers: passengers.length > 0 ? passengers : [passenger],
           totalAmount: total,
           bookingDate: new Date().toISOString(),
           journeyDate: searchParams.date,
@@ -328,9 +302,9 @@ const AppContent: React.FC = () => {
         };
 
         console.log('✅ Booking created:', {
-          bookingId: newBooking.id,
+          id: newBooking.id,
+          passengers: newBooking.passengers?.length || 1,
           seats: newBooking.selectedSeats.map(s => s.number),
-          total: newBooking.totalAmount,
         });
 
         setBooking(newBooking);
@@ -339,15 +313,27 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // ✅ COMPLETE RESET when returning from confirmation
   const handleNewBooking = () => {
+    console.log('🔄 Booking completed, performing complete reset...');
+
+    // Reset ALL booking state
     resetBooking();
+    setSelectedBus(null);
+    setSelectedSeats([]);
+    setPickupPoint(null);
+    setDropPoint(null);
+    setPassenger(null);
+    setPassengers([]);
+    setSearchParams(null);
+    setSearchResults([]); // ✅ Clear all search results
+
+    console.log('✅ Complete reset done, returning to home');
     setCurrentPage('home');
   };
 
   const handleNavigation = (page: string) => {
-    if (page === 'home' || page === 'fleet' || page === 'about' || page === 'contact' || page === 'admin-dashboard' || page === 'dashboard') {
-      setCurrentPage(page as Page);
-    }
+    setCurrentPage(page as Page);
   };
 
   const renderPage = () => {
@@ -384,27 +370,21 @@ const AppContent: React.FC = () => {
           <SeatSelectionPage
             bus={selectedBus}
             selectedSeats={selectedSeats}
+            searchParams={searchParams}
             onSeatSelect={handleSeatSelect}
             onContinue={handleContinueToPassenger}
             onBack={() => setCurrentPage('pickupDrop')}
-            searchParams={searchParams}
           />
         );
 
       case 'passenger':
-        if (
-          !selectedBus ||
-          !selectedSeats.length ||
-          !searchParams ||
-          !pickupPoint ||
-          !dropPoint
-        )
+        if (!selectedBus || !selectedSeats.length || !searchParams)
           return <HomePage onSearch={handleSearch} />;
         return (
           <PassengerDetailsPage
             bus={selectedBus}
             selectedSeats={selectedSeats}
-            onContinue={handlePassengerSubmit}
+            onContinue={selectedSeats.length === 1 ? handlePassengerSubmit : handlePassengersSubmit}
             onBack={() => setCurrentPage('seats')}
             searchParams={searchParams}
           />
@@ -459,8 +439,7 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen flex flex-col">
       <Navbar currentPage={currentPage} onNavigate={handleNavigation} />
       <main className="flex-1">{renderPage()}</main>
-      <Footer />
-    </div>
+<Footer onNavigate={handleNavigation} />    </div>
   );
 };
 

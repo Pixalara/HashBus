@@ -1,7 +1,21 @@
 import React from 'react';
 import { Bus, Mail, Phone, MapPin } from 'lucide-react';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  onNavigate?: (page: string) => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const handleNavClick = (page: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    if (onNavigate) {
+      onNavigate(page);
+      window.scrollTo(0, 0);
+    }
+  };
+
   return (
     <footer className="bg-slate-950 border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -24,20 +38,75 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-white font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Home</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Our Fleet</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">About Us</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Contact</a></li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('home', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Home
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('fleet', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Our Fleet
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('about', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  About Us
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('contact', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Contact
+                </button>
+              </li>
             </ul>
           </div>
 
           <div>
             <h3 className="text-white font-semibold mb-4">Services</h3>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Bus Booking</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Corporate Travel</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Group Bookings</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">Customer Support</a></li>
+              <li>
+                <button
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Bus Booking
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('contact', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Corporate Travel
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('contact', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Group Bookings
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={(e) => handleNavClick('contact', e)}
+                  className="text-slate-400 hover:text-amber-500 transition-colors text-left bg-none border-none cursor-pointer"
+                >
+                  Customer Support
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -45,15 +114,19 @@ export const Footer: React.FC = () => {
             <h3 className="text-white font-semibold mb-4">Contact Us</h3>
             <ul className="space-y-3 text-sm">
               <li className="flex items-start space-x-2 text-slate-400">
-                <Phone className="w-4 h-4 mt-0.5 text-amber-500" />
-                <span>+91 80 1234 5678</span>
+                <Phone className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
+                <a href="tel:+919107168168" className="hover:text-amber-500 transition-colors">
+                  +91 91071 68168
+                </a>
               </li>
               <li className="flex items-start space-x-2 text-slate-400">
-                <Mail className="w-4 h-4 mt-0.5 text-amber-500" />
-                <span>support@hashbus.com</span>
+                <Mail className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
+                <a href="mailto:support@hashbus.in" className="hover:text-amber-500 transition-colors">
+                  support@hashbus.in
+                </a>
               </li>
               <li className="flex items-start space-x-2 text-slate-400">
-                <MapPin className="w-4 h-4 mt-0.5 text-amber-500" />
+                <MapPin className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
                 <span>Bengaluru, Karnataka</span>
               </li>
             </ul>

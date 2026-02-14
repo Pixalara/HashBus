@@ -14,36 +14,57 @@ export const SeatMap: React.FC<SeatMapProps> = ({
   onSeatSelect,
   userGender = 'Other'
 }) => {
+  // ✅ Debug log to check seat statuses
+  React.useEffect(() => {
+    const bookedSeats = seats.filter(s => s.status === 'booked');
+    const availableSeats = seats.filter(s => s.status === 'available');
+    
+    console.log('📊 SeatMap Render:', {
+      total: seats.length,
+      available: availableSeats.length,
+      booked: bookedSeats.length,
+      blockedOrOther: seats.length - availableSeats.length - bookedSeats.length,
+      bookedSeatsDetails: bookedSeats.slice(0, 5).map(s => ({ number: s.number, status: s.status }))
+    });
+  }, [seats]);
+
   const isSeatSelected = (seat: Seat) => {
     return selectedSeats.some((s) => s.id === seat.id);
   };
 
   const canSelectSeat = (seat: Seat): boolean => {
+    // ✅ Check if seat is booked or blocked
     if (seat.status === 'booked' || seat.status === 'blocked' || 
         seat.status === 'booked_male' || seat.status === 'booked_female') {
+      console.log(`🔒 Seat ${seat.number} is not selectable - status: ${seat.status}`);
       return false;
     }
     return true;
   };
 
   const getSeatStyle = (seat: Seat) => {
-    if (seat.status === 'booked' || seat.status === 'blocked') {
-      return 'bg-slate-300 cursor-not-allowed opacity-40 border-slate-300';
+    // ✅ Make sure booked seats are visually distinct
+    if (seat.status === 'booked') {
+      return 'bg-red-400 cursor-not-allowed opacity-60 border-red-500 text-red-900';
+    }
+
+    if (seat.status === 'blocked') {
+      return 'bg-slate-400 cursor-not-allowed opacity-50 border-slate-500 text-slate-700';
     }
 
     if (seat.status === 'booked_male') {
-      return 'bg-blue-300 cursor-not-allowed opacity-50 border-blue-300';
+      return 'bg-blue-400 cursor-not-allowed opacity-60 border-blue-500 text-blue-900';
     }
 
     if (seat.status === 'booked_female') {
-      return 'bg-pink-300 cursor-not-allowed opacity-50 border-pink-300';
+      return 'bg-pink-400 cursor-not-allowed opacity-60 border-pink-500 text-pink-900';
     }
 
     if (isSeatSelected(seat)) {
       return 'bg-green-500 border-green-600 shadow-lg shadow-green-500/40 text-white font-semibold';
     }
 
-    return 'bg-white border-green-500 hover:bg-green-50 border-2 cursor-pointer hover:shadow-md transition-all';
+    return 'bg-white border-green-500 hover:bg-green-50 border-2 cursor-pointer hover:shadow-md transition-all text-slate-700';
   };
 
   const lowerDeckSeats = seats.filter(s => s.deck === 'lower').sort((a, b) => {
@@ -81,15 +102,15 @@ export const SeatMap: React.FC<SeatMapProps> = ({
         key={seat.id}
         onClick={() => !isDisabled && onSeatSelect(seat)}
         disabled={isDisabled}
-        title={`Seat ${seat.number} - ₹${seat.price}`}
+        title={`Seat ${seat.number} - ${seat.status} - ₹${seat.price}`}
         className={`h-14 w-14 sm:h-20 sm:w-20 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 font-bold text-xs sm:text-sm ${getSeatStyle(
           seat
         )} ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        <span className={`leading-none ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+        <span className={`leading-none ${isSelected ? 'text-white' : ''}`}>
           {seat.number}
         </span>
-        <span className={`text-xs leading-none font-semibold ${isSelected ? 'text-white' : 'text-green-600'}`}>
+        <span className={`text-xs leading-none font-semibold ${isSelected ? 'text-white' : seat.status === 'booked' ? 'text-red-900' : seat.status === 'booked_male' ? 'text-blue-900' : seat.status === 'booked_female' ? 'text-pink-900' : 'text-green-600'}`}>
           ₹{Math.floor(seat.price)}
         </span>
       </button>
@@ -112,7 +133,6 @@ export const SeatMap: React.FC<SeatMapProps> = ({
 
       <div className="space-y-2 sm:space-y-3">
         {rows.map((row, rowIndex) => {
-          // Separate single seats (col 0) from double seats (col 1, 2)
           const singleSeats = row.filter(s => s.col === 0);
           const doubleSeats = row.filter(s => s.col > 0);
           
@@ -121,7 +141,6 @@ export const SeatMap: React.FC<SeatMapProps> = ({
               key={`${deckName}-row-${rowIndex}`} 
               className="flex gap-2 sm:gap-6 justify-center items-center px-2 sm:px-0"
             >
-              {/* Single seats on LEFT */}
               <div className="flex gap-1 sm:gap-2">
                 {singleSeats.map(seat => (
                   <div key={seat.id}>
@@ -130,12 +149,10 @@ export const SeatMap: React.FC<SeatMapProps> = ({
                 ))}
               </div>
 
-              {/* Gap between single and double */}
               {doubleSeats.length > 0 && singleSeats.length > 0 && (
                 <div className="w-2 sm:w-4"></div>
               )}
 
-              {/* Double seats on RIGHT */}
               <div className="flex gap-1 sm:gap-2">
                 {doubleSeats.map(seat => (
                   <div key={seat.id}>
@@ -150,6 +167,14 @@ export const SeatMap: React.FC<SeatMapProps> = ({
     </div>
   );
 
+  // ✅ Calculate seat statistics
+  const totalSeats = seats.length;
+  const availableCount = seats.filter(s => s.status === 'available').length;
+  const bookedCount = seats.filter(s => s.status === 'booked').length;
+  const blockedCount = seats.filter(s => s.status === 'blocked').length;
+  const bookedMaleCount = seats.filter(s => s.status === 'booked_male').length;
+  const bookedFemaleCount = seats.filter(s => s.status === 'booked_female').length;
+
   return (
     <div className="space-y-4 sm:space-y-8 px-3 sm:px-0">
       {/* Header */}
@@ -161,13 +186,8 @@ export const SeatMap: React.FC<SeatMapProps> = ({
       {/* Both Decks Side by Side - Mobile Responsive */}
       <div className="bg-white rounded-2xl p-3 sm:p-8 shadow-lg overflow-x-auto">
         <div className="flex gap-3 sm:gap-12 justify-center min-w-max sm:min-w-0">
-          {/* Lower Deck */}
           {lowerRows.length > 0 && renderDeck(lowerRows, 'Lower deck')}
-
-          {/* Divider */}
           <div className="w-px bg-gray-300 hidden sm:block"></div>
-
-          {/* Upper Deck */}
           {upperRows.length > 0 && renderDeck(upperRows, 'Upper deck')}
         </div>
       </div>
@@ -201,8 +221,8 @@ export const SeatMap: React.FC<SeatMapProps> = ({
 
           {/* Booked */}
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-300 border-2 border-slate-300 rounded-lg flex items-center justify-center flex-shrink-0 opacity-40">
-              <span className="text-xs sm:text-sm font-semibold text-slate-600">X</span>
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-400 border-2 border-red-500 rounded-lg flex items-center justify-center flex-shrink-0 opacity-60">
+              <span className="text-xs sm:text-sm font-semibold text-red-900">X</span>
             </div>
             <div>
               <p className="text-slate-300 text-xs sm:text-sm font-medium">Booked</p>
@@ -212,8 +232,8 @@ export const SeatMap: React.FC<SeatMapProps> = ({
 
           {/* Booked Male */}
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-300 border-2 border-blue-400 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
-              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-700" fill="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-400 border-2 border-blue-500 rounded-lg flex items-center justify-center flex-shrink-0 opacity-60">
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-900" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
               </svg>
             </div>
@@ -225,8 +245,8 @@ export const SeatMap: React.FC<SeatMapProps> = ({
 
           {/* Booked Female */}
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-pink-300 border-2 border-pink-400 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
-              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-pink-700" fill="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-pink-400 border-2 border-pink-500 rounded-lg flex items-center justify-center flex-shrink-0 opacity-60">
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-pink-900" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
               </svg>
             </div>
@@ -238,7 +258,7 @@ export const SeatMap: React.FC<SeatMapProps> = ({
 
           {/* Blocked */}
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-500 border-2 border-slate-600 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-400 border-2 border-slate-500 rounded-lg flex items-center justify-center flex-shrink-0 opacity-50">
               <svg className="w-3 h-3 sm:w-4 sm:h-4 text-slate-700" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
               </svg>
@@ -255,17 +275,15 @@ export const SeatMap: React.FC<SeatMapProps> = ({
           <div className="grid grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm">
             <div>
               <p className="text-slate-400 text-xs">Total</p>
-              <p className="text-white font-semibold text-base sm:text-lg">{seats.length}</p>
+              <p className="text-white font-semibold text-base sm:text-lg">{totalSeats}</p>
             </div>
             <div>
               <p className="text-slate-400 text-xs">Available</p>
-              <p className="text-green-400 font-semibold text-base sm:text-lg">
-                {seats.filter(s => s.status === 'available').length}
-              </p>
+              <p className="text-green-400 font-semibold text-base sm:text-lg">{availableCount}</p>
             </div>
             <div>
-              <p className="text-slate-400 text-xs">Selected</p>
-              <p className="text-amber-400 font-semibold text-base sm:text-lg">{selectedSeats.length} / 6</p>
+              <p className="text-slate-400 text-xs">Booked</p>
+              <p className="text-red-400 font-semibold text-base sm:text-lg">{bookedCount + bookedMaleCount + bookedFemaleCount}</p>
             </div>
           </div>
         </div>

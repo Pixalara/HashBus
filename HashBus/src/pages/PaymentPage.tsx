@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { CreditCard, Smartphone, Building2, Wallet, Shield, Lock, ArrowLeft, Tag, Check, X as XIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CreditCard, Smartphone, Building2, Wallet, Shield, Lock, ArrowLeft, Tag, Check, X as XIcon, LogOut } from 'lucide-react';
 import { Bus, Seat, Passenger } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { Button } from '../components/Button';
@@ -26,10 +26,17 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   onPaymentComplete,
   onBack,
 }) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { pickupPoint, dropPoint } = useBooking();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showAuthError, setShowAuthError] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user?.id) {
+      setShowAuthError(true);
+    }
+  }, [user, authLoading]);
 
   const [cardDetails, setCardDetails] = useState({
     number: '',
@@ -39,7 +46,6 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   });
 
   const [upiId, setUpiId] = useState('');
-
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
   const [promoError, setPromoError] = useState('');
@@ -124,12 +130,29 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   };
 
   const handlePayment = async () => {
+    if (!user?.id) {
+      setShowAuthError(true);
+      alert('Please log in to complete the booking.');
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const bookingReference = generateBookingReference();
+      const seatNumbers = selectedSeats.map(s => s.number);
+      const numericSeatNumbers = seatNumbers.map(n => parseInt(String(n)));
+
+      console.log('═══════════════════════════════════════');
+      console.log('💳 PAYMENT PROCESS STARTED');
+      console.log('═══════════════════════════════════════');
+      console.log('📋 Booking Reference:', bookingReference);
+      console.log('👤 User ID:', user.id);
+      console.log('🚌 Bus ID:', bus.id);
+      console.log('🆔 Trip ID:', bus.trip_id);
+      console.log('🪑 Seats to book:', numericSeatNumbers);
 
       const bookingData = {
-        user_id: user?.id,
+        user_id: user.id,
         bus_id: bus.id,
         trip_id: bus.trip_id,
         booking_reference: bookingReference,
@@ -137,39 +160,225 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
         passenger_phone: passenger.mobile,
         passenger_email: passenger.email,
         passenger_gender: passenger.gender,
-        seats: selectedSeats.map(s => s.number),
-        pickup_point: pickupPoint || '',
-        drop_point: dropPoint || '',
+        seats: numericSeatNumbers,
+        pickup_point: pickupPoint?.name || '',
+        drop_point: dropPoint?.name || '',
         total_amount: total,
         payment_status: 'completed',
         journey_date: searchParams.date,
       };
 
-      const { error } = await supabase
+      // ✅ Step 1: Save booking to database
+      console.log('\n📝 Step 1: Saving booking to database...');
+      const { error: bookingError, data: insertedBooking } = await supabase
         .from('bookings')
-        .insert([bookingData]);
+        .insert([bookingData])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (bookingError) {
+        console.error('❌ Booking insert failed:', bookingError);
+        throw new Error(bookingError.message || 'Failed to save booking');
+      }
 
+      console.log('✅ Booking saved successfully:', {
+        id: insertedBooking?.id,
+        reference: insertedBooking?.booking_reference,
+      });
+
+      // ✅ Step 2: Update seat status to "booked" - DIRECT UPDATE
+      console.log('\n🔄 Step 2: Marking seats as booked...');
+      console.log('Attempting to update seats:', {
+        bus_id: bus.id,
+        seat_numbers: numericSeatNumbers,
+        new_status: 'booked',
+      });
+
+      let seatUpdateSuccess = false;
+
+      try {
+        const { error: seatUpdateError, data: updatedSeats, count } = await supabase
+          .from('seats')
+          .update({
+            status: 'booked',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('bus_id', bus.id)
+          .in('seat_number', numericSeatNumbers)
+          .select();
+
+        if (seatUpdateError) {
+          console.error('❌ Direct update error:', seatUpdateError);
+          console.error('Full error details:', {
+            message: seatUpdateError.message,
+            details: seatUpdateError.details,
+            hint: seatUpdateError.hint,
+            code: seatUpdateError.code,
+          });
+
+          // Try using RPC if direct update fails
+          console.log('⚠️ Attempting RPC update as fallback...');
+          const { data: rpcResult, error: rpcError } = await supabase.rpc(
+            'mark_seats_booked',
+            {
+              p_bus_id: bus.id,
+              p_seat_numbers: numericSeatNumbers,
+              p_new_status: 'booked',
+            }
+          );
+
+          if (rpcError) {
+            console.error('❌ RPC update also failed:', rpcError);
+            console.error('RPC error details:', {
+              message: rpcError.message,
+              details: rpcError.details,
+              hint: rpcError.hint,
+              code: rpcError.code,
+            });
+            throw new Error('Failed to mark seats as booked: ' + rpcError.message);
+          }
+
+          console.log('✅ Seats updated via RPC:', rpcResult);
+          seatUpdateSuccess = true;
+        } else {
+          console.log('✅ Seats updated directly:', {
+            count: updatedSeats?.length,
+            seats: updatedSeats?.map(s => ({ number: s.seat_number, status: s.status })),
+          });
+          seatUpdateSuccess = true;
+        }
+      } catch (seatError) {
+        console.error('❌ Seat update error:', seatError);
+        throw seatError;
+      }
+
+      // ✅ Step 3: Verify the seats were actually updated
+      console.log('\n✓ Step 3: Verifying seat status in database...');
+      const { data: verifiedSeats, error: verifyError } = await supabase
+        .from('seats')
+        .select('seat_number, status, bus_id')
+        .eq('bus_id', bus.id)
+        .in('seat_number', numericSeatNumbers);
+
+      if (verifyError) {
+        console.error('❌ Verification error:', verifyError);
+      } else {
+        console.log('✓ Verification result:', verifiedSeats);
+        if (verifiedSeats && verifiedSeats.length > 0) {
+          const allBooked = verifiedSeats.every(s => s.status === 'booked');
+          if (allBooked) {
+            console.log('✅ All seats confirmed as BOOKED in database');
+          } else {
+            console.warn('⚠️ Some seats NOT marked as booked:', verifiedSeats);
+            console.warn(
+              'Expected all to have status=booked, but got:',
+              verifiedSeats.map(s => ({ number: s.seat_number, status: s.status }))
+            );
+          }
+        } else {
+          console.warn('⚠️ No seats found to verify');
+        }
+      }
+
+      // ✅ Step 4: Update promo code usage
       if (appliedPromo) {
-        await supabase
+        console.log('\n🎟️ Step 4: Updating promo code usage...');
+        const { error: promoError } = await supabase
           .from('promo_codes')
           .update({ used_count: appliedPromo.used_count + 1 })
           .eq('id', appliedPromo.id);
+
+        if (promoError) {
+          console.warn('⚠️ Promo code update warning:', promoError);
+        } else {
+          console.log('✅ Promo code updated');
+        }
       }
 
-      setTimeout(() => {
-        setIsProcessing(false);
-        onPaymentComplete();
-      }, 1500);
-    } catch (error) {
-      console.error('Error saving booking:', error);
-      setTimeout(() => {
-        setIsProcessing(false);
-        onPaymentComplete();
-      }, 1500);
+      console.log('\n═══════════════════════════════════════');
+      console.log('✅ PAYMENT COMPLETED SUCCESSFULLY');
+      console.log('═══════════════════════════════════════');
+
+      // Wait before redirecting
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setIsProcessing(false);
+      onPaymentComplete();
+    } catch (error: any) {
+      console.error('❌ Payment error:', error);
+      setIsProcessing(false);
+      alert(error.message || 'Payment failed. Please try again.');
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showAuthError && !user?.id) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-red-500/10 rounded-full mb-6">
+              <LogOut className="w-10 h-10 text-red-500" />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-3">Authentication Required</h1>
+            <p className="text-xl text-slate-300 mb-8">
+              You need to log in to complete your booking.
+            </p>
+
+            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 max-w-md mx-auto mb-8">
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <p className="text-blue-300 text-sm">
+                    <strong>Why do we need authentication?</strong>
+                    <br />
+                    This ensures your booking is secure and you can view your tickets anytime.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={() => (window.location.href = '/login')}
+                  size="lg"
+                  className="w-full"
+                >
+                  <Shield className="w-5 h-5 mr-2" />
+                  Go to Login
+                </Button>
+
+                <Button
+                  onClick={onBack}
+                  variant="secondary"
+                  size="lg"
+                  className="w-full"
+                >
+                  <ArrowLeft className="w-5 h-5 mr-2" />
+                  Go Back
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-slate-400 text-sm">
+              <p>
+                Don't have an account?{' '}
+                <a href="/signup" className="text-amber-500 hover:text-amber-400">
+                  Sign up here
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const paymentMethods = [
     { id: 'upi' as PaymentMethod, name: 'UPI', icon: Smartphone },
@@ -304,7 +513,9 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
                         <input
                           type="password"
                           value={cardDetails.cvv}
-                          onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value })}
+                          onChange={(e) =>
+                            setCardDetails({ ...cardDetails, cvv: e.target.value })
+                          }
                           placeholder="123"
                           maxLength={4}
                           className="w-full px-4 py-3.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus, ArrowLeft } from 'lucide-react';
+import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus, ArrowLeft, Copy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../hooks/useAdmin';
 import { BusModal } from '../components/admin/BusModal';
 import { TripModal } from '../components/admin/TripModal';
 import { PromoModal } from '../components/admin/PromoModal';
+import { DuplicateTripModal } from '../components/admin/DuplicateTripModal';
 import { formatCurrency, formatDate, formatTime } from '../utils/formatters';
 
 interface AdminDashboardPageProps {
@@ -36,9 +37,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [busModalOpen, setBusModalOpen] = useState(false);
   const [tripModalOpen, setTripModalOpen] = useState(false);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
+  const [duplicateTripModalOpen, setDuplicateTripModalOpen] = useState(false);
   const [selectedBus, setSelectedBus] = useState<any>(null);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [selectedPromo, setSelectedPromo] = useState<any>(null);
+  const [selectedTripForDuplicate, setSelectedTripForDuplicate] = useState<any>(null);
 
   useEffect(() => {
     console.log('📊 Admin Dashboard Loaded:', {
@@ -125,6 +128,93 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       } catch (error) {
         console.error('❌ Delete trip failed:', error);
       }
+    }
+  };
+
+  const handleDuplicateTrip = (trip: any) => {
+    setSelectedTripForDuplicate(trip);
+    setDuplicateTripModalOpen(true);
+  };
+
+  const handleDuplicateSubmit = async (dates: string[]) => {
+    if (!selectedTripForDuplicate) return;
+
+    try {
+      console.log('🔄 Duplicating trip for dates:', dates);
+      console.log('📋 Selected Trip Data:', selectedTripForDuplicate);
+
+      // ✅ FIX: Parse the original departure and arrival times
+      const originalDepartureTime = selectedTripForDuplicate.departure_time;
+      const originalArrivalTime = selectedTripForDuplicate.arrival_time;
+
+      console.log('⏰ Original times - Departure:', originalDepartureTime, 'Arrival:', originalArrivalTime);
+
+      const createdTrips = await Promise.all(
+        dates.map(async (journeyDate) => {
+          // ✅ FIX: Calculate next day for arrival
+          const arrivalDateObj = new Date(journeyDate);
+          arrivalDateObj.setDate(arrivalDateObj.getDate() + 1);
+          
+          const arrivalYear = arrivalDateObj.getFullYear();
+          const arrivalMonth = String(arrivalDateObj.getMonth() + 1).padStart(2, '0');
+          const arrivalDay = String(arrivalDateObj.getDate()).padStart(2, '0');
+          const arrivalDate = `${arrivalYear}-${arrivalMonth}-${arrivalDay}`;
+
+          // ✅ FIX: Format datetime with T separator that Supabase expects
+          // Extract just the time portion if the original is a full datetime
+          let depTime = originalDepartureTime;
+          let arrTime = originalArrivalTime;
+
+          // If the original times include datetime (YYYY-MM-DDTHH:MM:SS), extract time
+          if (originalDepartureTime.includes('T')) {
+            depTime = originalDepartureTime.split('T')[1];
+          }
+          if (originalArrivalTime.includes('T')) {
+            arrTime = originalArrivalTime.split('T')[1];
+          }
+
+          const departureDateTime = `${journeyDate}T${depTime}`;
+          const arrivalDateTime = `${arrivalDate}T${arrTime}`;
+
+          const tripData = {
+            bus_id: selectedTripForDuplicate.bus_id,
+            source: selectedTripForDuplicate.source,
+            destination: selectedTripForDuplicate.destination,
+            from_city: selectedTripForDuplicate.from_city,
+            to_city: selectedTripForDuplicate.to_city,
+            journey_date: journeyDate, // ✅ Just the date part (YYYY-MM-DD)
+            departure_time: departureDateTime, // ✅ Full datetime (YYYY-MM-DDTHH:MM:SS)
+            arrival_time: arrivalDateTime, // ✅ Next day with same time
+            base_price: selectedTripForDuplicate.base_price,
+            pricing: selectedTripForDuplicate.pricing,
+            pickup_points: selectedTripForDuplicate.pickup_points,
+            drop_points: selectedTripForDuplicate.drop_points,
+            status: 'scheduled',
+          };
+
+          console.log('📝 Creating trip:', {
+            journeyDate,
+            arrivalDate,
+            departureDateTime,
+            arrivalDateTime,
+            tripData,
+          });
+
+          return await createTrip(tripData);
+        })
+      );
+
+      console.log('✅ Successfully created', createdTrips.length, 'duplicate trips');
+      
+      // Show success message
+      alert(`✅ Successfully created ${createdTrips.length} trips!\nDates: ${dates.join(', ')}`);
+      
+      setDuplicateTripModalOpen(false);
+      setSelectedTripForDuplicate(null);
+      await refreshAll();
+    } catch (error) {
+      console.error('❌ Duplicate trip failed:', error);
+      alert(`❌ Failed to duplicate trip: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -409,6 +499,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           </div>
                           <div className="flex gap-2 ml-4">
                             <button
+                              onClick={() => handleDuplicateTrip(trip)}
+                              className="p-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
+                              title="Duplicate Trip"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => handleEditTrip(trip)}
                               className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                               title="Edit Trip"
@@ -556,13 +653,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="text-lg font-semibold text-white">
-                              {booking.booking_number}
+                              {booking.buses?.bus_number || booking.id.substring(0, 8).toUpperCase()}
                             </h3>
                             <p className="text-slate-400 text-sm">
                               {booking.profiles?.full_name ||
-                                booking.profiles?.email ||
                                 booking.profiles?.phone ||
-                                'Unknown'}
+                                booking.id.substring(0, 8).toUpperCase()}
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -597,7 +693,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           </div>
                           <div>
                             <p className="text-slate-500">Passengers</p>
-                            <p className="text-slate-300">{booking.passengers?.length || 0}</p>
+                            <p className="text-slate-300 font-semibold">
+                              {booking.passengers?.length || 0}
+                            </p>
                           </div>
                           <div>
                             <p className="text-slate-500">Amount</p>
@@ -649,6 +747,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         }}
         onSubmit={handlePromoSubmit}
         promo={selectedPromo}
+      />
+
+      <DuplicateTripModal
+        isOpen={duplicateTripModalOpen}
+        onClose={() => {
+          setDuplicateTripModalOpen(false);
+          setSelectedTripForDuplicate(null);
+        }}
+        onSubmit={handleDuplicateSubmit}
+        trip={selectedTripForDuplicate}
       />
     </div>
   );

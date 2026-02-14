@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, Send, ArrowRight, ChevronDown } from 'lucide-react';
 import { Button } from '../components/Button';
+
+interface FAQItem {
+  question: string;
+  answer: string;
+}
 
 export const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +17,26 @@ export const ContactPage: React.FC = () => {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
+
+  const faqItems: FAQItem[] = [
+    {
+      question: "How do I cancel or modify my booking?",
+      answer: "You can cancel or modify your booking through your account dashboard up to 24 hours before your journey. Log in, go to 'My Bookings', select the trip, and choose 'Modify' or 'Cancel'. For cancellations made more than 48 hours before departure, you'll receive a full refund minus a small processing fee. Modifications can be made without any extra charges if done within the allowed timeframe."
+    },
+    {
+      question: "What is your refund policy?",
+      answer: "We offer a flexible refund policy: Full refund if cancelled 48+ hours before departure (minus 2% processing fee), 50% refund if cancelled 24-48 hours before departure, No refund if cancelled within 24 hours of departure. Refunds are processed within 5-7 business days to your original payment method. For special circumstances, please contact our customer support team."
+    },
+    {
+      question: "Can I choose my seat during booking?",
+      answer: "Yes! During the booking process, you'll see an interactive seat map of your coach. You can select your preferred seat(s) from available options. Lower deck and upper deck seats are available, with single sleeper and double sleeper configurations. Premium seats with extra legroom are also available at a nominal additional cost. Seat selection is included in your booking at no extra charge."
+    },
+    {
+      question: "What amenities are available onboard?",
+      answer: "Our premium fleet includes: Free Wi-Fi on all routes, USB charging ports at every seat, Complimentary water and snacks, Blankets and pillows for your comfort, LED entertainment screens, Air-conditioned cabins, Spacious reclining seats, Onboard restroom facilities, First aid and safety equipment. Our Bharat Benz and Volvo coaches are regularly sanitized and maintained to the highest standards for your safety and comfort."
+    }
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,31 +58,43 @@ export const ContactPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 hover:border-amber-500/50 transition-all">
-            <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+          <a 
+            href="tel:+919107168168"
+            className="group bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/20 cursor-pointer"
+          >
+            <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-6 group-hover:bg-amber-500/20 transition-all">
               <Phone className="w-8 h-8 text-amber-500" />
             </div>
             <h3 className="text-xl font-bold text-white mb-3">Phone Support</h3>
             <p className="text-slate-300 mb-4">Speak directly with our support team</p>
-            <a href="tel:+918012345678" className="text-amber-400 hover:text-amber-300 font-semibold">
-              +91 80 1234 5678
-            </a>
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 hover:text-amber-300 font-semibold">
+                +91 91071 68168
+              </span>
+              <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
+            </div>
             <p className="text-slate-400 text-sm mt-2">Available 24/7</p>
-          </div>
+          </a>
 
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 hover:border-amber-500/50 transition-all">
-            <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+          <a 
+            href="mailto:support@hashbus.in"
+            className="group bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/20 cursor-pointer"
+          >
+            <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-6 group-hover:bg-amber-500/20 transition-all">
               <Mail className="w-8 h-8 text-amber-500" />
             </div>
             <h3 className="text-xl font-bold text-white mb-3">Email Us</h3>
             <p className="text-slate-300 mb-4">Send us a detailed message</p>
-            <a href="mailto:support@hashbus.com" className="text-amber-400 hover:text-amber-300 font-semibold">
-              support@hashbus.com
-            </a>
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 hover:text-amber-300 font-semibold">
+                support@hashbus.in
+              </span>
+              <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
+            </div>
             <p className="text-slate-400 text-sm mt-2">Response within 2 hours</p>
-          </div>
+          </a>
 
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 hover:border-amber-500/50 transition-all">
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/20">
             <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-6">
               <MapPin className="w-8 h-8 text-amber-500" />
             </div>
@@ -76,8 +113,8 @@ export const ContactPage: React.FC = () => {
             <h2 className="text-3xl font-bold text-white mb-6">Send Us a Message</h2>
 
             {submitted ? (
-              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-8 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4">
+              <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/50 rounded-xl p-8 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/30 rounded-full mb-4 animate-pulse">
                   <Send className="w-8 h-8 text-green-400" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">Message Sent!</h3>
@@ -159,10 +196,17 @@ export const ContactPage: React.FC = () => {
                   />
                 </div>
 
-                <Button type="submit" size="lg" className="w-full">
-                  <Send className="w-5 h-5 mr-2" />
-                  Send Message
-                </Button>
+                <button
+                  type="submit"
+                  className="group w-full relative px-6 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/50 hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-amber-600 to-amber-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="relative flex items-center justify-center gap-2">
+                    <Send className="w-5 h-5" />
+                    <span>Send Message</span>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </button>
               </form>
             )}
           </div>
@@ -189,44 +233,58 @@ export const ContactPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border border-amber-500/30 rounded-xl p-8">
+            <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border border-amber-500/30 rounded-xl p-8 hover:border-amber-500/60 transition-all hover:shadow-lg hover:shadow-amber-500/20">
               <h3 className="text-2xl font-bold text-white mb-4">Quick Response</h3>
               <p className="text-slate-300 leading-relaxed mb-6">
                 Our dedicated support team is committed to responding to all inquiries within 2 hours
                 during office hours and 4 hours during off-hours. For urgent matters, please call our
                 24/7 helpline.
               </p>
-              <div className="flex flex-col gap-3">
-                <a
-                  href="tel:+918012345678"
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg transition-all"
-                >
-                  <Phone className="w-5 h-5" />
-                  Call Now: +91 80 1234 5678
-                </a>
-              </div>
+              
+              <a
+                href="tel:+919107168168"
+                className="group relative inline-flex w-full items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-amber-500 via-amber-550 to-amber-600 text-white font-semibold rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/50 hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative flex items-center justify-center gap-2 w-full">
+                  <Phone className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span>Call Now: +91 91071 68168</span>
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </a>
             </div>
 
+            {/* ✅ Modern Expandable FAQ Section */}
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8">
-              <h3 className="text-2xl font-bold text-white mb-4">Frequently Asked</h3>
-              <ul className="space-y-3 text-slate-300">
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2" />
-                  <span>How do I cancel or modify my booking?</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2" />
-                  <span>What is your refund policy?</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2" />
-                  <span>Can I choose my seat during booking?</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2" />
-                  <span>What amenities are available onboard?</span>
-                </li>
-              </ul>
+              <h3 className="text-2xl font-bold text-white mb-6">Frequently Asked</h3>
+              <div className="space-y-3">
+                {faqItems.map((item, index) => (
+                  <div
+                    key={index}
+                    className="border border-slate-700 rounded-lg overflow-hidden hover:border-amber-500/50 transition-all"
+                  >
+                    <button
+                      onClick={() => setExpandedFAQ(expandedFAQ === index ? null : index)}
+                      className="w-full flex items-center justify-between px-5 py-4 bg-slate-900/50 hover:bg-slate-900 transition-colors group"
+                    >
+                      <span className="text-left text-slate-300 font-medium group-hover:text-amber-400 transition-colors">
+                        {item.question}
+                      </span>
+                      <ChevronDown
+                        className={`w-5 h-5 text-amber-500 transition-transform duration-300 flex-shrink-0 ml-4 ${
+                          expandedFAQ === index ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    {expandedFAQ === index && (
+                      <div className="px-5 py-4 bg-slate-950/50 border-t border-slate-700 text-slate-300 leading-relaxed animate-in fade-in">
+                        {item.answer}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

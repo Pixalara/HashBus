@@ -14,6 +14,8 @@ interface BookingContextType {
   setSelectedSeats: (seats: Seat[]) => void;
   passenger: Passenger | null;
   setPassenger: (passenger: Passenger) => void;
+  passengers: Passenger[];  // ✅ ADD THIS
+  setPassengers: (passengers: Passenger[]) => void;  // ✅ ADD THIS
   booking: Booking | null;
   setBooking: (booking: Booking) => void;
   resetBooking: () => void;
@@ -28,6 +30,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [dropPoint, setDropPoint] = useState<Location | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [passenger, setPassenger] = useState<Passenger | null>(null);
+  const [passengers, setPassengers] = useState<Passenger[]>([]);  // ✅ ADD THIS
   const [booking, setBooking] = useState<Booking | null>(null);
 
   const resetBooking = () => {
@@ -37,6 +40,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     setDropPoint(null);
     setSelectedSeats([]);
     setPassenger(null);
+    setPassengers([]);  // ✅ ADD THIS
     setBooking(null);
   };
 
@@ -55,6 +59,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         setSelectedSeats,
         passenger,
         setPassenger,
+        passengers,  // ✅ ADD THIS
+        setPassengers,  // ✅ ADD THIS
         booking,
         setBooking,
         resetBooking,

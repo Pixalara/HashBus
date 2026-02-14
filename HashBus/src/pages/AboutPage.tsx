@@ -106,13 +106,13 @@ export const AboutPage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border border-amber-500/30 rounded-xl p-8 text-center">
-            <div className="text-5xl font-bold text-amber-500 mb-2">50,000+</div>
+            <div className="text-5xl font-bold text-amber-500 mb-2">10,000+</div>
             <p className="text-slate-300 text-lg">Happy Passengers</p>
           </div>
 
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border border-amber-500/30 rounded-xl p-8 text-center">
             <div className="text-5xl font-bold text-amber-500 mb-2">1,000+</div>
-            <p className="text-slate-300 text-lg">Daily Journeys</p>
+            <p className="text-slate-300 text-lg">Journeys and Counting</p>
           </div>
 
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border border-amber-500/30 rounded-xl p-8 text-center">

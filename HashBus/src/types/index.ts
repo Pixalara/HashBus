@@ -1,69 +1,34 @@
-export interface City {
+export interface Bus {
   id: string;
   name: string;
+  number?: string;
+  coachType: string;
+  totalSeats: number;
+  availableSeats: number;
+  basePrice: number;
+  departureTime: string;
+  arrivalTime: string;
+  duration: string;
+  rating: number;
+  amenities: string[];
+  trip_id?: string;
+  pickup_points?: string[];
+  drop_points?: string[];
+  seats?: Seat[];
+  pricing?: any;
 }
-
-export interface Route {
-  id: string;
-  from: City;
-  to: City;
-}
-
-export interface Location {
-  id: string;
-  name: string;
-  city: string;
-}
-
-export type CoachType = 'Bharat Benz' | 'Volvo';
-export type SeatStatus = 'available' | 'selected' | 'booked' | 'blocked' | 'male_only' | 'female_only' | 'booked_male' | 'booked_female';
-export type SeatType = 'sleeper' | 'seater';
-export type DeckType = 'upper' | 'lower';
 
 export interface Seat {
   id: string;
   number: string;
   row: number;
   col: number;
-  status: SeatStatus;
-  price: number;
-  type: SeatType;
-  deck: DeckType;
+  deck: 'upper' | 'lower';
+  type?: string;
   is_single?: boolean;
-  is_blocked?: boolean;
-  genderRestriction?: 'male' | 'female' | null;
-  passengerGender?: 'male' | 'female' | null;
-}
-
-export interface Bus {
-  id: string;
-  name: string;
-  number?: string;
-  coachType: CoachType | string;
-  departureTime: string;
-  arrivalTime: string;
-  duration: string;
-  availableSeats?: number;
-  totalSeats?: number;
-  basePrice: number;
-  amenities: string[];
-  rating: number;
-  seats?: Seat[];
-  trip_id?: string;
-  pickup_points?: any[];
-  drop_points?: any[];
-  pricing?: {
-    lower_double_sleeper: number;
-    lower_single_sleeper: number;
-    upper_double_sleeper: number;
-    upper_single_sleeper: number;
-  };
-}
-
-export interface SearchParams {
-  from: string;
-  to: string;
-  date: string;
+  isSingle?: boolean;
+  price: number;
+  status: 'available' | 'booked' | 'blocked' | 'booked_male' | 'booked_female';
 }
 
 export interface Passenger {
@@ -74,11 +39,33 @@ export interface Passenger {
   email: string;
 }
 
+export interface Location {
+  id?: string;
+  name: string;
+  address?: string;
+  city?: string;
+}
+
+export interface Route {
+  id: string;
+  from: Location;
+  to: Location;
+  distance?: number;
+  duration?: string;
+}
+
+export interface SearchParams {
+  from: string;
+  to: string;
+  date: string;
+}
+
 export interface Booking {
   id: string;
   bus: Bus;
   selectedSeats: Seat[];
   passenger: Passenger;
+  passengers?: Passenger[];
   totalAmount: number;
   bookingDate: string;
   journeyDate: string;
@@ -87,4 +74,25 @@ export interface Booking {
   dropPoint: Location;
 }
 
-export type PaymentMethod = 'upi' | 'card' | 'netbanking' | 'wallet';
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  avatar?: string;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}

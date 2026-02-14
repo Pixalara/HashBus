@@ -78,13 +78,28 @@ export const BusCard: React.FC<BusCardProps> = ({ bus, onSelect }) => {
               <p className="text-slate-400 text-xs">per person</p>
             </div>
 
-            <div className="flex items-center gap-2 text-green-400 text-sm">
-              <Users className="w-4 h-4" />
-              <span className="font-medium">{bus.availableSeats} seats available</span>
+            {/* ✅ FIXED: Show total and available seats */}
+            <div className="space-y-2 w-full lg:w-auto">
+              <div className="flex items-center gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs font-medium">Total Seats</p>
+                  <p className="text-white font-bold text-lg">{bus.totalSeats}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs font-medium">Available</p>
+                  <p className={`font-bold text-lg ${bus.availableSeats > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {bus.availableSeats}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <Button onClick={onSelect} className="w-full lg:w-auto px-8">
-              Select Seats
+            <Button 
+              onClick={onSelect} 
+              className="w-full lg:w-auto px-8"
+              disabled={bus.availableSeats === 0}
+            >
+              {bus.availableSeats > 0 ? 'Select Seats' : 'No Seats Available'}
             </Button>
           </div>
         </div>

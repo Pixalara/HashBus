@@ -56,6 +56,7 @@ interface Booking {
   id: string;
   booking_number: string;
   user_id: string;
+  bus_id: string;
   trip_id: string;
   total_amount: number;
   discount_amount: number;
@@ -65,6 +66,11 @@ interface Booking {
   passengers: any[];
   created_at: string;
   trips?: Trip;
+  buses?: {
+    id: string;
+    name: string;
+    bus_number: string;
+  };
   profiles?: {
     full_name: string | null;
     email: string | null;
@@ -150,6 +156,7 @@ export const useAdmin = () => {
       setBuses(formattedData);
       console.log('✅ Buses fetched:', formattedData.length);
     } catch (error: any) {
+      console.error('❌ Error fetching buses:', error);
       showToast(error.message || 'Failed to fetch buses', 'error');
     }
   };
@@ -210,6 +217,7 @@ export const useAdmin = () => {
       setTrips(formattedData);
       console.log('✅ Trips fetched:', formattedData.length);
     } catch (error: any) {
+      console.error('❌ Error fetching trips:', error);
       showToast(error.message || 'Failed to fetch trips', 'error');
     }
   };
@@ -221,46 +229,101 @@ export const useAdmin = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Promo fetch error:', error);
+        throw error;
+      }
 
-      const formattedData = data?.map(promo => ({
-        ...promo,
-        min_booking_amount: promo.min_amount || 0,
-        valid_from: promo.created_at,
-        valid_until: promo.expires_at || promo.created_at,
-        is_active: promo.expires_at ? new Date(promo.expires_at) > new Date() : true,
-        used_count: 0,
-        description: promo.description || ''
-      })) || [];
+      const now = new Date();
+
+      // ✅ Format and check expiry for each promo
+      const formattedData = data?.map(promo => {
+        // ✅ Handle both expires_at and valid_until column names
+        const expiryDate = new Date(promo.expires_at || promo.valid_until || promo.created_at);
+        const isExpired = expiryDate < now;
+
+        console.log(`📋 Promo ${promo.code}:`, {
+          expires_at: promo.expires_at,
+          valid_until: promo.valid_until,
+          expiryDate: expiryDate.toISOString(),
+          isExpired,
+          is_active: promo.is_active,
+        });
+
+        // ✅ If expired, auto-deactivate in database
+        if (isExpired && promo.is_active) {
+          console.log(`⏰ Auto-deactivating expired promo: ${promo.code}`);
+          
+          supabase
+            .from('promo_codes')
+            .update({ is_active: false })
+            .eq('id', promo.id)
+            .then(() => console.log(`✅ Promo ${promo.code} auto-deactivated`))
+            .catch(err => console.error('❌ Failed to auto-deactivate promo:', err));
+        }
+
+        return {
+          id: promo.id,
+          code: promo.code,
+          description: promo.description || '',
+          discount_type: promo.discount_type,
+          discount_value: promo.discount_value,
+          min_booking_amount: 0, // ✅ Default value, not stored
+          max_discount: null, // ✅ Default value, not stored
+          valid_from: promo.created_at,
+          valid_until: promo.expires_at || promo.valid_until || promo.created_at,
+          usage_limit: null, // ✅ Default value, not stored
+          used_count: promo.used_count || 0,
+          is_active: isExpired ? false : promo.is_active, // ✅ Force inactive if expired
+        };
+      }) || [];
 
       setPromos(formattedData);
-      console.log('✅ Promos fetched:', formattedData.length);
+      console.log('✅ Promos fetched and validated:', formattedData.length);
     } catch (error: any) {
+      console.error('❌ Error fetching promos:', error);
       showToast(error.message || 'Failed to fetch promo codes', 'error');
     }
   };
 
   const fetchBookings = async () => {
     try {
+      // ✅ FIXED: Fetch bookings with bus details and calculate passenger count
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           id,
           user_id,
+          bus_id,
           trip_id,
           total_amount,
+          seats,
           status,
+          payment_status,
           created_at,
-          trips(source, destination, departure_time, buses(name))
+          trips(
+            id,
+            source, 
+            destination, 
+            departure_time,
+            buses(id, name, bus_number)
+          ),
+          buses(id, name, bus_number)
         `)
         .order('created_at', { ascending: false });
 
-      if (bookingsError) throw bookingsError;
+      if (bookingsError) {
+        console.error('❌ Bookings fetch error:', bookingsError);
+        throw bookingsError;
+      }
 
       if (!bookingsData || bookingsData.length === 0) {
         setBookings([]);
+        console.log('ℹ️ No bookings found');
         return;
       }
+
+      console.log('📊 Raw bookings data:', bookingsData.length);
 
       const userIds = [...new Set(bookingsData.map(b => b.user_id).filter(Boolean))];
 
@@ -272,16 +335,29 @@ export const useAdmin = () => {
       const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
 
       const formattedData = bookingsData.map(booking => {
+        // ✅ Get passenger count from seats array length
+        const passengerCount = booking.seats ? booking.seats.length : 0;
         const tripDepartureDate = booking.trips?.departure_time.split('T')[0] || booking.trips?.departure_time;
         
+        console.log(`📋 Booking ${booking.id}:`, {
+          busNumber: booking.buses?.bus_number || 'N/A',
+          passengers: passengerCount,
+          seats: booking.seats,
+        });
+
         return {
           ...booking,
           booking_number: booking.id.substring(0, 8).toUpperCase(),
           final_amount: booking.total_amount,
           discount_amount: 0,
-          payment_status: booking.status,
+          payment_status: booking.payment_status || booking.status,
           booking_status: 'confirmed',
-          passengers: [],
+          passengers: booking.seats || [], // ✅ Use seats array as passengers
+          buses: booking.buses ? {
+            id: booking.buses.id,
+            name: booking.buses.name,
+            bus_number: booking.buses.bus_number || 'Unknown',
+          } : undefined,
           profiles: profilesMap.get(booking.user_id) || { full_name: null, email: null, phone: null },
           trips: booking.trips ? {
             ...booking.trips,
@@ -293,8 +369,9 @@ export const useAdmin = () => {
       });
 
       setBookings(formattedData);
-      console.log('✅ Bookings fetched:', formattedData.length);
+      console.log('✅ Bookings fetched and formatted:', formattedData.length);
     } catch (error: any) {
+      console.error('❌ Error fetching bookings:', error);
       showToast(error.message || 'Failed to fetch bookings', 'error');
     }
   };
@@ -324,7 +401,7 @@ export const useAdmin = () => {
       
       console.log('✅ Stats:', { totalBuses, activeTrips, totalBookings, revenue });
     } catch (error: any) {
-      console.error('Failed to fetch stats:', error);
+      console.error('❌ Failed to fetch stats:', error);
     }
   };
 
@@ -680,22 +757,33 @@ export const useAdmin = () => {
   const createPromo = async (promoData: Omit<PromoCode, 'id' | 'created_at' | 'used_count'>) => {
     setLoading(true);
     try {
+      // ✅ Only include fields that exist in your database
       const insertData: any = {
         code: promoData.code,
+        description: promoData.description,
         discount_type: promoData.discount_type,
         discount_value: promoData.discount_value,
-        min_amount: promoData.min_booking_amount || 0,
-        max_discount: promoData.max_discount,
-        expires_at: promoData.valid_until,
-        usage_limit: promoData.usage_limit,
+        is_active: promoData.is_active,
+        valid_until: promoData.valid_until,
       };
 
-      const { error } = await supabase.from('promo_codes').insert(insertData);
+      console.log('✅ Creating promo with data:', insertData);
 
-      if (error) throw error;
+      const { error, data: insertedData } = await supabase
+        .from('promo_codes')
+        .insert(insertData)
+        .select();
+
+      if (error) {
+        console.error('❌ Promo creation error:', error);
+        throw error;
+      }
+
+      console.log('✅ Promo created:', insertedData);
       showToast('Promo code created successfully', 'success');
       await fetchPromos();
     } catch (error: any) {
+      console.error('❌ Promo creation failed:', error);
       showToast(error.message || 'Failed to create promo code', 'error');
       throw error;
     } finally {
@@ -709,19 +797,36 @@ export const useAdmin = () => {
       const updateData: any = {};
 
       if (promoData.code) updateData.code = promoData.code;
+      if (promoData.description) updateData.description = promoData.description;
       if (promoData.discount_type) updateData.discount_type = promoData.discount_type;
       if (promoData.discount_value !== undefined) updateData.discount_value = promoData.discount_value;
-      if (promoData.min_booking_amount !== undefined) updateData.min_amount = promoData.min_booking_amount;
-      if (promoData.max_discount !== undefined) updateData.max_discount = promoData.max_discount;
-      if (promoData.valid_until) updateData.expires_at = promoData.valid_until;
-      if (promoData.usage_limit !== undefined) updateData.usage_limit = promoData.usage_limit;
+      
+      // ✅ Use valid_until instead of expires_at
+      if (promoData.valid_until) updateData.valid_until = promoData.valid_until;
+      
+      if (promoData.is_active !== undefined) updateData.is_active = promoData.is_active;
 
-      const { error } = await supabase.from('promo_codes').update(updateData).eq('id', id);
+      console.log('✅ Updating promo with data:', {
+        id,
+        updateData,
+      });
 
-      if (error) throw error;
+      const { error, data: updatedData } = await supabase
+        .from('promo_codes')
+        .update(updateData)
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('❌ Promo update error:', error);
+        throw error;
+      }
+
+      console.log('✅ Promo updated:', updatedData);
       showToast('Promo code updated successfully', 'success');
       await fetchPromos();
     } catch (error: any) {
+      console.error('❌ Promo update failed:', error);
       showToast(error.message || 'Failed to update promo code', 'error');
       throw error;
     } finally {

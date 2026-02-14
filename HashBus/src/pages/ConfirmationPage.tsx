@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle, Download, Home, Mail, Phone, MapPin, Calendar, Clock, Users, Navigation } from 'lucide-react';
-import { Booking } from '../types';
+import { Booking, Passenger } from '../types';
 import { formatCurrency, formatDate, formatTime } from '../utils/formatters';
 import { downloadTicketAsPDF } from '../utils/generatePDF';
 import { Button } from '../components/Button';
@@ -11,8 +11,19 @@ interface ConfirmationPageProps {
 }
 
 export const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ booking, onNewBooking }) => {
+  // ✅ Get all passengers - use passengers array if available, otherwise use single passenger
+  const allPassengers = booking.passengers && booking.passengers.length > 0 
+    ? booking.passengers 
+    : [booking.passenger];
+
+  console.log('📋 Confirmation Page - Passengers:', allPassengers.length);
+  allPassengers.forEach((pax, index) => {
+    console.log(`  Passenger ${index + 1}:`, pax.name, '- Seat:', booking.selectedSeats[index]?.number);
+  });
+
   const handleDownload = async () => {
-    await downloadTicketAsPDF(booking);
+    console.log('📄 Downloading PDF with', allPassengers.length, 'passengers');
+    await downloadTicketAsPDF(booking, allPassengers);
   };
 
   return (
@@ -146,27 +157,46 @@ export const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ booking, onN
               </div>
             </div>
 
+            {/* ✅ UPDATED: Show all passengers */}
             <div className="border-t border-slate-700 pt-6">
-              <h2 className="text-xl font-bold text-white mb-6">Passenger Information</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">Name</p>
-                  <p className="text-white font-medium">{booking.passenger.name}</p>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">Age & Gender</p>
-                  <p className="text-white font-medium">
-                    {booking.passenger.age} years, {booking.passenger.gender}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">Mobile</p>
-                  <p className="text-white font-medium">{booking.passenger.mobile}</p>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">Email</p>
-                  <p className="text-white font-medium">{booking.passenger.email}</p>
-                </div>
+              <h2 className="text-xl font-bold text-white mb-6">
+                Passenger Information ({allPassengers.length})
+              </h2>
+              <div className="space-y-6">
+                {allPassengers.map((passenger, index) => (
+                  <div
+                    key={index}
+                    className="bg-slate-900/50 rounded-lg p-6 border border-slate-700 space-y-4"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-white font-bold text-lg">Passenger {index + 1}</h3>
+                      <span className="text-amber-500 text-sm font-medium bg-amber-500/10 px-3 py-1 rounded-lg">
+                        Seat {booking.selectedSeats[index]?.number}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-slate-400 text-sm mb-1">Name</p>
+                        <p className="text-white font-medium">{passenger.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm mb-1">Age & Gender</p>
+                        <p className="text-white font-medium">
+                          {passenger.age} years, {passenger.gender}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm mb-1">Mobile</p>
+                        <p className="text-white font-medium">{passenger.mobile}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm mb-1">Email</p>
+                        <p className="text-white font-medium text-sm break-all">{passenger.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
