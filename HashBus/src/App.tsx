@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BookingProvider, useBooking } from './context/BookingContext';
 import { ToastProvider, useToast } from './components/Toast';
 import { Navbar } from './components/Navbar';
@@ -408,6 +408,7 @@ const AppContent: React.FC = () => {
             searchParams={searchParams}
             onPaymentComplete={handlePaymentComplete}
             onBack={() => setCurrentPage('passenger')}
+            onNavigate={handleNavigation}
           />
         );
 
@@ -439,7 +440,8 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen flex flex-col">
       <Navbar currentPage={currentPage} onNavigate={handleNavigation} />
       <main className="flex-1">{renderPage()}</main>
-<Footer onNavigate={handleNavigation} />    </div>
+      <Footer onNavigate={handleNavigation} />
+    </div>
   );
 };
 
