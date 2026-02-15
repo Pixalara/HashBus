@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus, ArrowLeft, Copy } from 'lucide-react';
+import { Shield, Bus, Calendar, Tag, Users, TrendingUp, Edit, Trash2, Plus, ArrowLeft, Copy, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../hooks/useAdmin';
 import { BusModal } from '../components/admin/BusModal';
@@ -7,6 +7,7 @@ import { TripModal } from '../components/admin/TripModal';
 import { PromoModal } from '../components/admin/PromoModal';
 import { DuplicateTripModal } from '../components/admin/DuplicateTripModal';
 import { formatCurrency, formatDate, formatTime } from '../utils/formatters';
+import { supabase } from '../lib/supabase';
 
 interface AdminDashboardPageProps {
   onNavigate: (page: string) => void;
@@ -42,28 +43,121 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [selectedPromo, setSelectedPromo] = useState<any>(null);
   const [selectedTripForDuplicate, setSelectedTripForDuplicate] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // ✅ Check user authorization on component mount
+  useEffect(() => {
+    const checkAuthorization = async () => {
+      try {
+        setAuthLoading(true);
+
+        // Get current authenticated user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          console.log('❌ No authenticated user found');
+          setIsAuthorized(false);
+          onNavigate('home');
+          return;
+        }
+
+        // Get user profile with role
+        const { data: userProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !userProfile) {
+          console.log('❌ User profile not found');
+          setIsAuthorized(false);
+          onNavigate('home');
+          return;
+        }
+
+        const role = userProfile.role;
+        setUserRole(role);
+
+        // ✅ Allow both 'admin' AND 'super_admin' roles
+        if (role === 'admin' || role === 'super_admin') {
+          console.log(`✅ Authorization granted for role: ${role}`);
+          setIsAuthorized(true);
+        } else {
+          console.log(`❌ Access denied for role: ${role}`);
+          setIsAuthorized(false);
+          onNavigate('home');
+        }
+      } catch (error) {
+        console.error('❌ Authorization check error:', error);
+        setIsAuthorized(false);
+        onNavigate('home');
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkAuthorization();
+  }, [onNavigate]);
 
   useEffect(() => {
-    console.log('📊 Admin Dashboard Loaded:', {
-      buses: buses.length,
-      trips: trips.length,
-      promos: promos.length,
-      bookings: bookings.length,
-      stats,
-    });
-  }, [buses, trips, promos, bookings, stats]);
+    if (isAuthorized) {
+      console.log('📊 Admin Dashboard Loaded:', {
+        buses: buses.length,
+        trips: trips.length,
+        promos: promos.length,
+        bookings: bookings.length,
+        stats,
+        userRole,
+      });
+    }
+  }, [buses, trips, promos, bookings, stats, userRole, isAuthorized]);
 
-  if (!profile || !['admin', 'agent'].includes(profile.role)) {
+  // ✅ Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin mb-4">
+            <Shield className="w-16 h-16 text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Verifying Access</h1>
+          <p className="text-slate-400">Please wait...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Show access denied if not authorized
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
           <p className="text-slate-400">You don't have permission to access this page.</p>
+          <p className="text-slate-500 text-sm mt-2">Required role: Admin or Super Admin</p>
+          <button
+            onClick={() => onNavigate('home')}
+            className="mt-6 px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+          >
+            Back to Home
+          </button>
         </div>
       </div>
     );
   }
+
+  // ✅ Handle logout
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      onNavigate('home');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+    }
+  };
 
   const statsData = [
     {
@@ -282,6 +376,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header with Role Badge and Logout */}
         <div className="mb-8">
           <button
             onClick={() => onNavigate('home')}
@@ -290,13 +385,34 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <ArrowLeft className="w-5 h-5" />
             Back to Home
           </button>
-          <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-amber-500" />
-            <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Shield className="w-8 h-8 text-amber-500" />
+              <div>
+                <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+                <p className="text-slate-400">Manage your HashBus operations</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm text-slate-400">Role</p>
+                <p className="text-lg font-bold text-amber-500">
+                  {userRole === 'super_admin' ? '��� SUPER ADMIN' : '👤 ADMIN'}
+                </p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </button>
+            </div>
           </div>
-          <p className="text-slate-400">Manage your HashBus operations</p>
         </div>
 
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statsData.map((stat) => (
             <div
@@ -312,6 +428,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           ))}
         </div>
 
+        {/* Main Content */}
         <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden">
           <div className="border-b border-slate-700">
             <div className="flex overflow-x-auto">
